@@ -1,0 +1,48 @@
+# Environment
+.env
+env/
+venv/
+.venv/
+
+# Data (too large for GitHub)
+data/raw/
+data/features/
+*.csv
+*.parquet
+
+# Trained models (too large for GitHub)
+models/
+*.npz
+*.npy
+*.pkl
+*.joblib
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs
+logs/
+*.log
+nohup.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+.vercel
+.env*.local

@@ -1,0 +1,14 @@
+api/
+src/
+data/
+models/
+logs/
+deploy/
+docs/
+requirements.txt
+Dockerfile
+docker-compose.yml
+.env
+.env.example
+inspect_zips.py
+test_api.py

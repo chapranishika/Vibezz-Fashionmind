@@ -1,0 +1,41 @@
+# Core data
+# NOTE: the Phase-1 ETL (src/ingestion/etl.py) runs on pandas, not PySpark, so
+# pyspark is intentionally not a dependency. Add it back only if you restore a
+# Spark ETL path.
+pandas>=2.0.0
+numpy>=1.26.0
+pyarrow>=14.0.0
+
+# ML
+scikit-learn>=1.4.0
+lightgbm>=4.3.0
+implicit>=0.7.2
+faiss-cpu>=1.7.4
+shap>=0.44.0
+scipy>=1.11.0
+
+# Deep learning (CPU; swap for GPU on EC2)
+torch>=2.2.0
+transformers>=4.38.0
+Pillow>=10.0.0
+sentence-transformers>=2.5.0
+
+# GenAI
+google-genai>=2.0.0
+pytrends>=4.9.2
+
+# API
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+slowapi>=0.1.9
+supabase>=2.4.0
+
+# Plotting (notebooks only)
+matplotlib>=3.8.0
+seaborn>=0.13.0
+plotly>=5.19.0
+
+bcrypt>=4.1.0
+PyJWT>=2.8.0
