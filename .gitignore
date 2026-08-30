@@ -4,7 +4,10 @@ env/
 venv/
 .venv/
 
-# Data (too large for GitHub)
+# Data (too large for GitHub; these are local symlinks to D:/F: on the dev box)
+/data
+/models
+/env
 data/raw/
 data/features/
 *.csv
@@ -16,6 +19,9 @@ models/
 *.npy
 *.pkl
 *.joblib
+
+# Test / dev tooling
+.pytest_cache/
 
 # Python
 __pycache__/
