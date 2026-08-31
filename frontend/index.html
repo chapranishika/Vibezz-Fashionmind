@@ -49,7 +49,10 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 .iconbtn{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:var(--t2);position:relative;transition:.15s}
 .iconbtn:hover{background:var(--surface-2);color:var(--t1)}.iconbtn svg{width:19px;height:19px}
 .count{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--violet);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;font-family:var(--disp)}
-.pfp{width:36px;height:36px;border-radius:50%;background:linear-gradient(140deg,var(--violet),#9B7BFF);color:#fff;display:grid;place-items:center;font-family:var(--disp);font-weight:700;font-size:13px;cursor:pointer}
+.pfp{width:36px;height:36px;border-radius:50%;background:var(--lav);border:1px solid var(--line-2);color:var(--plum);display:grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:13px;cursor:pointer;transition:.15s}
+.pfp:hover{border-color:var(--violet)}
+.pfp svg{width:19px;height:19px}
+.pfp.user{background:linear-gradient(140deg,var(--violet),#9B7BFF);border-color:transparent;color:#fff}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--disp);font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px;transition:.14s}
 .btn:active{transform:translateY(1px)}
@@ -230,7 +233,7 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
     </div>
     <button class="iconbtn" title="Wishlist" onclick="go('foryou')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg><span class="count" id="wlCount" hidden>0</span></button>
     <button class="iconbtn" title="Theme" onclick="toggleTheme()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
-    <div class="pfp" id="pfp" onclick="go('dash')">V</div>
+    <div class="pfp" id="pfp" onclick="go('dash')"><svg class="vmark" viewBox="0 0 48 48" aria-hidden="true"><path class="l" d="M6 4.5c4.6-.5 8 .3 8.8 2.9L28 40.2c.6 1.7-.7 3.3-2.8 3.4-2 .1-4-1-4.7-3L3.6 8.9C2.7 6.6 3.6 5 6 4.5Z"/><path class="r" d="M22.6 33C25 21.8 30.9 10.8 40.2 5c1.9-1.2 3.5.6 2.6 2.7-3.9 8.5-6.7 16.4-8.5 23.4-1.2 4.4-3.8 10.2-7.2 13.8-2.2 2.3-5.6.2-5.3-3 .2-2.1 1.1-5.1 2.8-8.1Z"/></svg></div>
   </div>
 </header>
 
@@ -421,6 +424,7 @@ function cap(s){return String(s||'').replace(/\b\w/g,c=>c.toUpperCase())}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
 
+function setPfp(){const el=document.getElementById('pfp');if(user){el.classList.add('user');el.textContent=user.name[0].toUpperCase();}else{el.classList.remove('user');el.innerHTML='<svg class=\"vmark\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path class=\"l\" d=\"M6 4.5c4.6-.5 8 .3 8.8 2.9L28 40.2c.6 1.7-.7 3.3-2.8 3.4-2 .1-4-1-4.7-3L3.6 8.9C2.7 6.6 3.6 5 6 4.5Z\"/><path class=\"r\" d=\"M22.6 33C25 21.8 30.9 10.8 40.2 5c1.9-1.2 3.5.6 2.6 2.7-3.9 8.5-6.7 16.4-8.5 23.4-1.2 4.4-3.8 10.2-7.2 13.8-2.2 2.3-5.6.2-5.3-3 .2-2.1 1.1-5.1 2.8-8.1Z\"/></svg>';}}
 function go(p,arg){
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
   const el=document.getElementById('page-'+p);if(!el)return;el.classList.add('on');
@@ -467,7 +471,7 @@ function catCard(p){
 /* ---- HOME ---- */
 async function loadHome(){
   document.getElementById('heroImg').src=IMG('1490481651871-ab68de25d43d');
-  if(user)document.getElementById('pfp').textContent=user.name[0].toUpperCase();
+  setPfp();
   const rail=document.getElementById('recRail');
   rail.innerHTML=Array(6).fill('<div class="pcard"><div class="ph skel"></div><div class="body"><div class="skel" style="height:12px;width:60%;margin-bottom:8px"></div><div class="skel" style="height:12px;width:40%"></div></div></div>').join('');
   const recs=await getRecs(10);
@@ -589,10 +593,10 @@ async function doAuth(){
     const d=await r.json();if(!r.ok){toast(d.detail||'Auth failed');return}
     token=d.token;user={name:d.name,email:d.email,customer_id:d.customer_id};
     localStorage.setItem('vz_token',token);localStorage.setItem('vz_user',JSON.stringify(user));_recs=null;
-    document.getElementById('pfp').textContent=user.name[0].toUpperCase();toast('Welcome, '+user.name.split(' ')[0]);loadDash();
+    setPfp();toast('Welcome, '+user.name.split(' ')[0]);loadDash();
   }catch(e){toast('Could not reach the API')}
 }
-function logout(){token=null;user=null;_recs=null;localStorage.removeItem('vz_token');localStorage.removeItem('vz_user');document.getElementById('pfp').textContent='V';loadDash()}
+function logout(){token=null;user=null;_recs=null;localStorage.removeItem('vz_token');localStorage.removeItem('vz_user');setPfp();loadDash()}
 
 function toggleWl(aid,el){
   const i=wl.indexOf(aid);
@@ -621,7 +625,7 @@ async function sendChat(){
   }catch(e){a.textContent='Could not reach the stylist. Is the API running?'}
 }
 
-if(user)document.getElementById('pfp').textContent=user.name[0].toUpperCase();
+setPfp();
 {const c=document.getElementById('wlCount');c.hidden=!wl.length;c.textContent=wl.length}
 loadHome();
 const _sp=new URLSearchParams(location.search).get('p');
