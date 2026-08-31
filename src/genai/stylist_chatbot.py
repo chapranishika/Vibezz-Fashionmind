@@ -484,16 +484,26 @@ def run_tool(name: str, args: dict) -> str:
         return json.dumps({"error":str(e)})
 
 
-def chat(message: str, customer_id: str, history: list, api_key: str):
-    """Single-turn chat. Returns (response_text, updated_history)."""
+def _augment(message: str) -> str:
+    chunks = retrieve_context(message, k=3)
+    ctx = "\n".join(f"• {c}" for c in chunks)
+    return f"[Style context]\n{ctx}\n\n[Message]\n{message}" if ctx else message
+
+
+def chat(message: str, customer_id: str, history: list, api_key: str = ""):
+    """Single-turn chat. Returns (response_text, updated_history).
+    Uses OpenRouter when OPENROUTER_API_KEY is set, otherwise Gemini."""
+    full_msg = _augment(message)
+
+    if os.getenv("OPENROUTER_API_KEY"):
+        from src.genai.llm import run_chat
+        return run_chat(SYSTEM_PROMPT, history, full_msg,
+                        TOOL_DECLARATIONS, run_tool)
+
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
-    chunks = retrieve_context(message, k=3)
-    ctx    = "\n".join(f"• {c}" for c in chunks)
-    full_msg = (f"[Style context]\n{ctx}\n\n[Message]\n{message}"
-                if ctx else message)
+    client = genai.Client(api_key=api_key or os.getenv("GEMINI_API_KEY", ""))
 
     contents = [types.Content(role=t['role'],
                               parts=[types.Part(text=t['content'])])
@@ -529,15 +539,28 @@ def chat(message: str, customer_id: str, history: list, api_key: str):
     return "I can help you find the perfect outfit! What occasion are you dressing for?", history
 
 
-def stream_chat(message: str, customer_id: str, history: list, api_key: str):
+def stream_chat(message: str, customer_id: str, history: list, api_key: str = ""):
     """SSE generator for FastAPI StreamingResponse."""
+    full_msg = _augment(message)
+
+    if os.getenv("OPENROUTER_API_KEY"):
+        from src.genai.llm import run_chat
+        seen_tools = []
+        text, _ = run_chat(SYSTEM_PROMPT, history, full_msg,
+                           TOOL_DECLARATIONS, run_tool,
+                           on_tool=lambda n: seen_tools.append(n))
+        for t in seen_tools:
+            yield f"data: {json.dumps({'tool_call': t, 'done': False})}\n\n"
+        words = text.split(' ')
+        for i, w in enumerate(words):
+            yield f"data: {json.dumps({'token': w + (' ' if i < len(words)-1 else ''), 'done': False})}\n\n"
+        yield f"data: {json.dumps({'token': '', 'done': True, 'full': text})}\n\n"
+        return
+
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
-    chunks = retrieve_context(message, k=3)
-    ctx    = "\n".join(f"• {c}" for c in chunks)
-    full_msg = (f"[Style context]\n{ctx}\n\n[Message]\n{message}" if ctx else message)
+    client = genai.Client(api_key=api_key or os.getenv("GEMINI_API_KEY", ""))
 
     contents = [types.Content(role=t['role'],
                               parts=[types.Part(text=t['content'])])

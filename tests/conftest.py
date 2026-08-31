@@ -26,6 +26,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production-use-only")
 os.environ["SERPAPI_KEY"] = ""
 os.environ["PINTEREST_ACCESS_TOKEN"] = ""
 os.environ["PINTEREST_ALLOW_UNOFFICIAL"] = ""
+os.environ["OPENROUTER_API_KEY"] = ""          # chat stays in demo mode in tests
 
 
 def build_fake_M():

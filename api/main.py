@@ -185,13 +185,13 @@ async def chat_endpoint(req: ChatReq):
         session_id = create_chat_session(customer_id=req.customer_id)
     except Exception:
         session_id = None
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = os.getenv("OPENROUTER_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
     if not api_key:
-        # Demo mode — works without API key
+        # Demo mode — works without any LLM key
         chunks = retrieve_context(req.message, k=2)
         recs   = get_recommendations(req.customer_id, n=4)
         demo = (
-            "**[Demo mode — set GEMINI_API_KEY for live Gemini responses]**\n\n"
+            "**[Demo mode — set OPENROUTER_API_KEY (or GEMINI_API_KEY) for live replies]**\n\n"
             + "**Style tips for your query:**\n"
             + "\n".join(f"• {c[:100]}" for c in chunks[:2])
             + "\n\n**Top picks:**\n"
@@ -215,11 +215,11 @@ async def chat_endpoint(req: ChatReq):
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatReq):
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = os.getenv("OPENROUTER_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         async def demo_stream():
             import asyncio
-            msg   = "Demo mode: Set GEMINI_API_KEY for live streaming. "
+            msg   = "Demo mode: set OPENROUTER_API_KEY for live streaming. "
             recs  = get_recommendations(req.customer_id, n=3)
             items = "  ".join(
                 f"{r['article_id']}({r.get('product_type_name','item')})"
