@@ -16,6 +16,7 @@ from api.db import (log_recommendations_bulk, create_chat_session,
 from api.routes.auth     import router as auth_router
 from api.routes.cart     import router as cart_router
 from api.routes.products import router as products_router
+from api.routes.catalog  import router as catalog_router
 
 # Anchor all relative model/data paths to the project root regardless of CWD.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -62,6 +63,7 @@ app.state.limiter = limiter
 app.include_router(auth_router)
 app.include_router(cart_router)
 app.include_router(products_router)
+app.include_router(catalog_router)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])

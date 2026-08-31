@@ -62,6 +62,13 @@ def _load():
     _M['trend']    = pd.read_parquet('data/features/trend_scores.parquet')
     lw = _M['trend']['week'].max()
     _M['lt_map']   = _M['trend'][_M['trend'].week==lw].set_index('product_type_name')['trend_score'].to_dict()
+    # Blend the Pinterest culture signal into the per-product-type trend score
+    # so trending searches also nudge the re-ranker's `trend_score` feature.
+    _pin_path = 'data/features/pinterest_fused_scores.parquet'
+    if os.path.exists(_pin_path):
+        for _r in pd.read_parquet(_pin_path).itertuples(index=False):
+            _M['lt_map'][_r.product_type_name] = float(_r.fused_score)
+        _M['pinterest_boosted'] = True
     _M['outfit_df']= pd.read_parquet('data/features/outfit_pairs.parquet')
     _M['shap_df']  = pd.read_parquet('data/features/shap_explanations.parquet')
     _M['u_price']  = pd.read_parquet('data/features/user_avg_price.parquet').set_index('customer_id')['avg_price'].to_dict()
@@ -243,8 +250,115 @@ def get_trend_report(category: str = None) -> dict:
         rec = rec[rec['product_type_name'].str.contains(category,case=False,na=False)]
     top = rec.head(10)[['product_type_name','trend_score','sales','predicted']].copy()
     top['trend_score'] = top['trend_score'].round(3)
-    return {"week":str(lw.date()),"trending":top.to_dict('records'),
-            "note":"Trend score 0-1 based on LightGBM demand forecast + seasonality"}
+    out = {"week":str(lw.date()),"trending":top.to_dict('records'),
+           "note":"Trend score 0-1 based on LightGBM demand forecast + seasonality"}
+    # Live-culture signal from Pinterest, layered on top of the demand forecast.
+    try:
+        from src.trends.pinterest_trends import get_pinterest_trends as _pt
+        pins = _pt(category=category, limit=8)
+        out["pinterest_rising"] = [
+            {"keyword": p["keyword"], "score": p["score"], "pct_change": p["pct_change"]}
+            for p in pins
+        ]
+    except Exception:
+        out["pinterest_rising"] = []
+    return out
+
+
+def get_pinterest_trends(category: str = None, region: str = "IN") -> dict:
+    """Currently-rising fashion searches on Pinterest (with catalogue mapping)."""
+    from src.trends.pinterest_trends import get_pinterest_trends as _pt
+    from src.trends.trend_map import map_trend
+    pins = _pt(category=category, region=region, limit=15)
+    rows = []
+    for p in pins:
+        m = map_trend(p["keyword"])
+        rows.append({"keyword": p["keyword"], "score": p["score"],
+                     "pct_change": p["pct_change"], "source": p["source"],
+                     "maps_to": {"product_types": m["product_types"], "tags": m["tags"]}})
+    return {"region": region, "source": rows[0]["source"] if rows else "cache",
+            "rising": rows,
+            "note": "Pinterest search interest, 0-100. Use shop_the_trend to turn a keyword into buyable products."}
+
+
+def shop_the_trend(keyword: str, budget_max: float = None, n: int = 8) -> dict:
+    """Turn a trend keyword (e.g. 'barrel jeans', 'balletcore') into products
+    from the aggregator: curated India retail links + trained catalogue + any
+    live shopping source that is configured."""
+    from src.trends.trend_map import map_trend
+    from src.catalog import aggregate_search
+    m = map_trend(keyword)
+    items = aggregate_search(query=keyword, product_types=m["product_types"] or None,
+                             tags=m["tags"] or None, colours=m["colours"] or None,
+                             limit=max(n * 2, 12))
+    if budget_max:
+        items = [it for it in items
+                 if (it.get("price_min") or 0) <= budget_max or it.get("price_min") is None]
+    return {"trend": keyword, "maps_to": m["product_types"],
+            "products": items[:n],
+            "note": "buy_url opens the item (or a search for it) on the retailer's own site."}
+
+
+def build_trend_outfit(keyword: str, budget_max: float = None) -> dict:
+    """Assemble a full look for a trend: one top/dress, one bottom (if needed),
+    shoes, and an accessory, drawn from the aggregator catalogue."""
+    from src.trends.trend_map import map_trend
+    from src.catalog import aggregate_search
+    m = map_trend(keyword)
+    pool = aggregate_search(query=keyword, product_types=m["product_types"] or None,
+                            tags=m["tags"] or None, limit=40)
+    if budget_max:
+        pool = [p for p in pool if (p.get("price_min") or 0) <= budget_max
+                or p.get("price_min") is None]
+
+    TOP   = {"Top","Blouse","Shirt","T-shirt","Sweater","Vest top","Bodysuit","Cardigan","Polo shirt"}
+    LAYER = {"Blazer","Jacket","Coat"}
+    DRESS = {"Dress","Jumpsuit/Playsuit","Garment Set"}
+    BOTTOM= {"Trousers","Skirt","Shorts","Leggings/Tights"}
+    SHOE  = {"Ballerinas","Sneakers","Boots","Sandals","Other shoe","Slippers"}
+    ACC   = {"Bag","Scarf","Belt","Sunglasses","Earring","Necklace","Hat/beanie","Hat/brim","Cap/peaked","Other accessories"}
+
+    used_ids = set()
+    style_pool = aggregate_search(tags=(m["tags"] or None), limit=40) if m["tags"] else []
+
+    def pick(kinds, *extra):
+        for src in (pool, style_pool, *extra):
+            for p in src:
+                if p.get("product_type") in kinds and p.get("id") not in used_ids:
+                    used_ids.add(p.get("id"))
+                    return p
+        return None
+
+    def pick_neutral(kinds):
+        # last resort: any style-appropriate item of this kind so the look is complete
+        return pick(kinds, aggregate_search(product_types=list(kinds), limit=12))
+
+    look = []
+    dress = pick(DRESS)
+    if dress:
+        look.append({"slot": "one-piece", **dress})
+        layer = pick(LAYER)
+        if layer:
+            look.append({"slot": "layer", **layer})
+    else:
+        top = pick(TOP) or pick(LAYER) or pick_neutral(TOP)
+        if top:
+            look.append({"slot": "top", **top})
+        bottom = pick(BOTTOM) or pick_neutral(BOTTOM)
+        if bottom:
+            look.append({"slot": "bottom", **bottom})
+    for slot, kinds in (("shoes", SHOE), ("accessory", ACC)):
+        it = pick(kinds) or pick_neutral(kinds)
+        if it:
+            look.append({"slot": slot, **it})
+
+    total_lo = total_hi = 0
+    for it in look:
+        total_lo += it.get("price_min") or 0
+        total_hi += it.get("price_max") or it.get("price_min") or 0
+    return {"trend": keyword, "look": look,
+            "estimated_total": {"min": total_lo, "max": total_hi, "currency": "INR"},
+            "note": "Prices are category estimates unless a live source is configured; confirm on each retailer."}
 
 
 def get_outfit_suggestion(upper_article_id: str = None,
@@ -311,6 +425,24 @@ TOOL_DECLARATIONS = [
          "customer_id":{"type":"string"},
          "article_id": {"type":"string"}
      },"required":["customer_id","article_id"]}},
+    {"name":"get_pinterest_trends",
+     "description":"Currently rising fashion searches on Pinterest (India), with a score 0-100 and week-over-week change. Use for 'what's trending', 'latest ideas', 'what should I try this season'.",
+     "parameters":{"type":"object","properties":{
+         "category":{"type":"string","description":"optional keyword filter, e.g. 'jeans', 'dress'"}
+     }}},
+    {"name":"shop_the_trend",
+     "description":"Turn a trend keyword (e.g. 'barrel jeans', 'balletcore', 'quiet luxury') into buyable products with links to Indian retailers (Myntra/Ajio/Nykaa/H&M...). Use after get_pinterest_trends when the user wants to actually shop a trend.",
+     "parameters":{"type":"object","properties":{
+         "keyword":{"type":"string"},
+         "budget_max":{"type":"number","description":"max price per item in INR"},
+         "n":{"type":"integer","description":"number of products (default 8)"}
+     },"required":["keyword"]}},
+    {"name":"build_trend_outfit",
+     "description":"Assemble a complete outfit (top/dress + bottom + shoes + accessory) for a trend keyword, with per-item retailer links and an estimated total.",
+     "parameters":{"type":"object","properties":{
+         "keyword":{"type":"string"},
+         "budget_max":{"type":"number","description":"max price per item in INR"}
+     },"required":["keyword"]}},
 ]
 
 TOOL_MAP = {
@@ -318,22 +450,28 @@ TOOL_MAP = {
     "get_trend_report":      get_trend_report,
     "get_outfit_suggestion": get_outfit_suggestion,
     "explain_recommendation":explain_recommendation,
+    "get_pinterest_trends":  get_pinterest_trends,
+    "shop_the_trend":        shop_the_trend,
+    "build_trend_outfit":    build_trend_outfit,
 }
 
-SYSTEM_PROMPT = """You are FashionMind Stylist, an expert AI fashion assistant powered by a personalised recommendation engine trained on 8M H&M transactions.
+SYSTEM_PROMPT = """You are FashionMind Stylist, an expert AI fashion assistant. You pair a personalised recommendation engine (trained on H&M purchase data) with a live Pinterest trend feed and a shopping aggregator that links out to Indian retailers.
 
-You have access to these tools:
-- get_recommendations: personalised fashion picks with SHAP explanations
-- get_trend_report: what's trending right now (LightGBM demand forecast)
-- get_outfit_suggestion: compatible outfit pairings (FAISS visual similarity)
-- explain_recommendation: why an item was recommended (SHAP feature importance)
+Tools:
+- get_recommendations: personalised picks for a known customer, with SHAP reasons
+- get_trend_report: demand-forecast trends (LightGBM) + a pinterest_rising list
+- get_pinterest_trends: currently rising Pinterest fashion searches (score 0-100)
+- shop_the_trend: turn a trend keyword into buyable products with retailer links
+- build_trend_outfit: assemble a full look (top/dress + bottom + shoes + accessory) for a trend
+- get_outfit_suggestion: compatible pairings from the trained catalogue
+- explain_recommendation: why an item was recommended (SHAP)
 
 Guidelines:
-- Be specific and actionable — reference actual article IDs and product types
-- Explain the 'why' using the SHAP reasons provided (↑ means positive signal)
-- Balance personalisation with trend awareness
-- Keep responses warm and conversational
-- When showing items, format them clearly with product type, colour, and reasons
+- For "what's trending / latest ideas": call get_pinterest_trends, then offer to shop_the_trend or build_trend_outfit for the ones the user likes.
+- Products come from an aggregator: every item has a buy_url that opens the retailer's own site. Prices flagged price_is_estimate are category estimates — say "confirm on the retailer" rather than quoting them as exact.
+- Be specific: name product types, colours, retailers, and the trend a pick reflects.
+- Explain the 'why' using SHAP reasons where present (↑ = positive signal).
+- Keep it warm and concise; format item lists clearly.
 """
 
 

@@ -95,3 +95,42 @@ def test_login_wrong_password_rejected(client):
         "email": "c@d.com", "password": "correct-horse", "name": "Bob"})
     bad = client.post("/auth/login", json={"email": "c@d.com", "password": "nope"})
     assert bad.status_code == 401
+
+
+# ── aggregator / trending ──────────────────────────────────────────────────
+def test_catalog_trends_endpoint(client):
+    r = client.get("/catalog/trends")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["rising"] and "maps_to" in body["rising"][0]
+
+
+def test_catalog_shop_endpoint(client):
+    r = client.get("/catalog/shop", params={"trend": "cargo pants", "n": 4})
+    assert r.status_code == 200
+    prods = r.json()["products"]
+    assert prods and all(p["buy_url"].startswith("http") for p in prods)
+
+
+def test_catalog_outfit_endpoint(client):
+    r = client.get("/catalog/outfit", params={"trend": "balletcore"})
+    assert r.status_code == 200
+    assert len(r.json()["look"]) >= 2
+
+
+def test_compare_cart_flow(client):
+    su = client.post("/auth/signup", json={
+        "email": "cmp@x.com", "password": "comparepass1", "name": "Cee"})
+    tok = {"Authorization": f"Bearer {su.json()['token']}"}
+    prod = client.get("/catalog/shop", params={"trend": "barrel jeans", "n": 1}).json()["products"][0]
+    add = client.post("/cart", headers=tok, json={
+        "article_id": prod["id"], "mode": "compare", "source": prod["source"],
+        "retailer": prod["retailer"], "buy_url": prod["buy_url"],
+        "title": prod["title"], "look": "barrel jeans", "price": prod.get("price_min")})
+    assert add.status_code == 200 and add.json()["mode"] == "compare"
+    comp = client.get("/cart/compare", headers=tok)
+    assert comp.status_code == 200
+    body = comp.json()
+    assert body["compare_count"] == 1
+    assert body["looks"][0]["look"] == "barrel jeans"
+    assert body["looks"][0]["retailers"]

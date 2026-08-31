@@ -1768,6 +1768,7 @@ header {
     
     <nav class="nav-desktop">
       <a class="active" id="dnav-home" onclick="nav('home')">Home</a>
+      <a id="dnav-trending" onclick="nav('trending')">Trending</a>
       <a id="dnav-explore" onclick="nav('explore')">Explore</a>
       <a id="dnav-chat" onclick="nav('chat')">AI Stylist</a>
       <a id="dnav-wishlist" onclick="nav('wishlist')">Profile</a>
@@ -1808,6 +1809,12 @@ header {
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
       Home
+    </button>
+    <button class="nav-mobile-item" id="mnav-trending" onclick="nav('trending')">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+      Trending
     </button>
     <button class="nav-mobile-item" id="mnav-explore" onclick="nav('explore')">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1912,6 +1919,24 @@ header {
         <h3>New Arrivals</h3>
       </div>
       <div class="h-scroll-container" id="new-arrivals"></div>
+    </div>
+
+    <!-- PAGE: TRENDING (Pinterest-driven aggregator) -->
+    <div class="page" id="page-trending">
+      <div class="explore-header">
+        <h2>Trending Now <span style="font-size:13px;font-weight:500;color:var(--t2)">· rising on Pinterest (India)</span></h2>
+        <div class="explore-meta" id="trending-src">Pick a trend to shop it across Myntra, Ajio, Nykaa, H&amp;M &amp; more — you buy on the retailer's own site.</div>
+      </div>
+      <div id="trend-chips" style="display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 10px"></div>
+      <div id="trend-active" style="display:none;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <h3 id="trend-active-name" style="margin:0;font-size:20px"></h3>
+          <button class="btn btn-secondary" id="trend-look-btn" onclick="buildLook()" style="padding:6px 14px;font-size:12px">✨ Build the look</button>
+        </div>
+        <div id="trend-look" style="display:none;margin:0 0 22px"></div>
+        <div class="products-grid" id="trend-grid"></div>
+      </div>
+      <div id="trend-loading" class="explore-meta" style="display:none;margin-top:24px">Loading trends…</div>
     </div>
 
     <!-- PAGE: EXPLORE -->
@@ -2329,9 +2354,114 @@ function nav(page) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   
   if (page === 'home') loadHome();
+  if (page === 'trending') loadTrending();
   if (page === 'explore') loadExplore();
   if (page === 'cart') renderCart();
   if (page === 'wishlist') renderProfile();
+}
+
+/* ── Trending (Pinterest-driven aggregator) ─────────────────────────── */
+let trendState = { current: null };
+
+async function loadTrending() {
+  const chips = document.getElementById('trend-chips');
+  const loading = document.getElementById('trend-loading');
+  if (chips.dataset.loaded) return;
+  loading.style.display = 'block';
+  try {
+    const r = await fetch(`${API}/catalog/trends`);
+    const d = await r.json();
+    document.getElementById('trending-src').textContent =
+      `${(d.rising || []).length} rising searches · source: ${d.source} · you buy on each retailer's own site`;
+    chips.innerHTML = (d.rising || []).map(t => `
+      <button class="btn btn-secondary" style="padding:8px 16px;font-size:13px;border-radius:999px"
+        onclick="shopTrend(${JSON.stringify(t.keyword).replace(/"/g,'&quot;')})">
+        ${t.keyword} <span style="color:var(--pk);font-weight:700">${t.pct_change || ''}</span>
+      </button>`).join('');
+    chips.dataset.loaded = '1';
+    if (d.rising && d.rising.length) shopTrend(d.rising[0].keyword);
+  } catch (e) {
+    document.getElementById('trending-src').textContent = 'Could not reach the trend service.';
+  }
+  loading.style.display = 'none';
+}
+
+function trendCard(p) {
+  const price = p.price_min
+    ? `₹${p.price_min}${p.price_max && p.price_max !== p.price_min ? '–' + p.price_max : ''}${p.price_is_estimate ? '*' : ''}`
+    : 'See price on site';
+  const img = p.image || `https://source.unsplash.com/featured/400x500/?${encodeURIComponent((p.image_query||p.title)+',fashion')}`;
+  return `
+    <div class="product-card">
+      <div class="pc-img-wrap"><img src="${img}" alt="" loading="lazy" onerror="this.style.opacity=.15"></div>
+      <div class="pc-info">
+        <div class="pc-brand">${p.brand || p.retailer || ''}</div>
+        <div class="pc-title">${p.title || ''}</div>
+        <div class="pc-price">${price} <span style="font-size:11px;color:var(--t2)">· ${p.retailer || ''}</span></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <a href="${p.buy_url}" target="_blank" rel="noopener noreferrer"
+             style="flex:1;text-align:center;padding:9px;font-size:12px;font-weight:700;border-radius:8px;background:var(--pk);color:#fff;text-decoration:none">Buy ↗</a>
+          <button onclick='addCompare(${JSON.stringify(p).replace(/'/g,"&#39;")})'
+             style="padding:9px 12px;font-size:12px;border-radius:8px;border:1px solid var(--bd);background:var(--c2);color:var(--t1);cursor:pointer">＋ Compare</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function shopTrend(keyword) {
+  trendState.current = keyword;
+  document.getElementById('trend-active').style.display = 'block';
+  document.getElementById('trend-active-name').textContent = keyword;
+  document.getElementById('trend-look').style.display = 'none';
+  const grid = document.getElementById('trend-grid');
+  grid.innerHTML = '<div class="explore-meta">Finding products…</div>';
+  window.scrollTo({ top: 220, behavior: 'smooth' });
+  try {
+    const r = await fetch(`${API}/catalog/shop?trend=${encodeURIComponent(keyword)}&n=12`);
+    const d = await r.json();
+    grid.innerHTML = (d.products || []).length
+      ? d.products.map(trendCard).join('')
+      : '<div class="explore-meta">No products mapped yet — try another trend.</div>';
+  } catch (e) { grid.innerHTML = '<div class="explore-meta">Could not load products.</div>'; }
+}
+
+async function buildLook() {
+  if (!trendState.current) return;
+  const box = document.getElementById('trend-look');
+  box.style.display = 'block';
+  box.innerHTML = '<div class="explore-meta">Assembling a look…</div>';
+  try {
+    const r = await fetch(`${API}/catalog/outfit?trend=${encodeURIComponent(trendState.current)}`);
+    const d = await r.json();
+    const t = d.estimated_total || {};
+    box.innerHTML = `
+      <div style="border:1px solid var(--bd);border-radius:14px;padding:16px;background:var(--c2)">
+        <div style="font-weight:700;margin-bottom:12px">The look · est. ₹${t.min||0}–${t.max||0}</div>
+        <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px">
+          ${(d.look || []).map(x => `
+            <a href="${x.buy_url}" target="_blank" rel="noopener noreferrer" style="min-width:150px;text-decoration:none;color:inherit">
+              <img src="${x.image || `https://source.unsplash.com/featured/300x380/?${encodeURIComponent((x.image_query||x.title)+',fashion')}`}" style="width:150px;height:190px;object-fit:cover;border-radius:10px" onerror="this.style.opacity=.15">
+              <div style="font-size:11px;text-transform:uppercase;color:var(--t2);margin-top:6px">${x.slot}</div>
+              <div style="font-size:13px;font-weight:600">${x.title}</div>
+              <div style="font-size:12px;color:var(--t2)">${x.retailer} · ₹${x.price_min||'?'}</div>
+            </a>`).join('')}
+        </div>
+      </div>`;
+  } catch (e) { box.innerHTML = '<div class="explore-meta">Could not build a look.</div>'; }
+}
+
+function addCompare(p) {
+  if (!token) { requireAuth(() => addCompare(p)); return; }
+  fetch(`${API}/cart`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({
+      article_id: p.id, mode: 'compare', source: p.source, retailer: p.retailer,
+      buy_url: p.buy_url, title: p.title, image: p.image || '',
+      look: trendState.current || 'saved',
+      price: p.price_min || null, currency: p.currency || 'INR',
+    }),
+  }).then(() => toast(`Added to compare — ${p.retailer}`)).catch(() => toast('Could not add'));
 }
 
 function goBack() { nav(prevPage); }

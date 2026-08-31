@@ -247,6 +247,37 @@ docker-compose up -d
 | POST | `/explain` | SHAP explanation for an item (cached) |
 | POST | `/chat` | Gemini stylist (single-turn) |
 | POST | `/chat/stream` | SSE streaming chat |
+| GET | `/catalog/trends` | Rising Pinterest fashion searches (India) + catalogue mapping |
+| GET | `/catalog/shop?trend=` | Products for a trend keyword, across curated retailers + live source |
+| GET | `/catalog/outfit?trend=` | A full assembled look (top/dress + bottom + shoes + accessory) |
+| GET | `/catalog/products` | Filtered aggregator search (`q`, `product_type`, `tag`, `colour`, `source`) |
+| GET | `/catalog/product/{id}` | One aggregator product |
+| GET | `/cart/compare` | Cross-site compare view of `mode=compare` cart lines |
+
+---
+
+## Trend-driven aggregator (Pinterest → products)
+
+Alongside the trained recommender, FashionMind runs a **trend aggregator**: it
+pulls rising fashion searches from **Pinterest**, maps each keyword to catalogue
+filters, and returns buyable products that **link out to the retailer's own
+site** (Myntra, Ajio, Nykaa Fashion, H&M India, Zara, Urbanic, Snitch, FabIndia).
+The cart has two modes — `demo` (trained H&M catalogue, fake checkout) and
+`compare` (aggregator items, price-compare list, buy on the retailer).
+
+| Layer | File | Falls back to |
+|---|---|---|
+| Pinterest signal | `src/trends/pinterest_trends.py` | official API → unofficial endpoint → shipped cache (`data/features/pinterest_trends_cache.json`) |
+| Keyword → catalogue | `src/trends/trend_map.py` | bare tokens as tags |
+| Product sources | `src/catalog/sources.py` | curated seed (`data/catalog/trend_products.json`, ~50 IN items) + trained H&M catalogue; **SerpApi Google Shopping** adapter activates when `SERPAPI_KEY` is set |
+| Stylist tools | `get_pinterest_trends`, `shop_the_trend`, `build_trend_outfit` in `src/genai/stylist_chatbot.py` | — |
+| UI | `frontend/index.html` → **Trending** tab | — |
+
+Everything works with **zero configuration** (cache + curated). Set
+`PINTEREST_ACCESS_TOKEN` and/or `SERPAPI_KEY` in `.env` for live data — see
+`.env.example`. The curated seed's `buy_url`s are retailer **search** URLs and its
+prices are category estimates (`price_is_estimate: true`); a live product API
+replaces both.
 
 ---
 

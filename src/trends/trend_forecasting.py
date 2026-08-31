@@ -223,6 +223,41 @@ def run():
     except Exception as e:
         print(f"  Skipped ({e}) — code ready, runs on AWS EC2")
 
+    # ── PART D: Pinterest culture signal → per-product-type boost ──
+    print("\n── Part D: Pinterest Trend Signal ──────────────────────")
+    try:
+        import sys as _sys, os as _os
+        _root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        if _root not in _sys.path:
+            _sys.path.insert(0, _root)
+        from src.trends.pinterest_trends import get_pinterest_trends
+        from src.trends.trend_map import map_trend
+        pins = get_pinterest_trends(limit=40)
+        # aggregate each rising keyword's score onto the product types it maps to
+        pt_score, pt_terms = {}, {}
+        for p in pins:
+            for ptname in map_trend(p['keyword'])['product_types']:
+                pt_score[ptname] = max(pt_score.get(ptname, 0), p['score'] / 100.0)
+                pt_terms.setdefault(ptname, []).append(p['keyword'])
+        last_week = trend_out['week'].max()
+        rows = []
+        for ptname, pin in pt_score.items():
+            base = trend_out[(trend_out.product_type_name == ptname) &
+                             (trend_out.week == last_week)]['trend_score']
+            b = float(base.iloc[0]) if len(base) else 0.5
+            rows.append({'product_type_name': ptname, 'week': last_week,
+                         'forecast_score': round(b, 4), 'pinterest_score': round(pin, 4),
+                         'fused_score': round(0.55 * b + 0.45 * pin, 4),
+                         'pinterest_terms': ', '.join(sorted(set(pt_terms[ptname]))[:4])})
+        pin_df = pd.DataFrame(rows).sort_values('fused_score', ascending=False)
+        pin_df.to_parquet('data/features/pinterest_fused_scores.parquet', index=False)
+        print(f"  {len(pin_df)} product types boosted by Pinterest (source: {pins[0]['source']})")
+        for _, r in pin_df.head(6).iterrows():
+            print(f"    {r['product_type_name']:<16} forecast {r['forecast_score']:.2f} "
+                  f"+ pin {r['pinterest_score']:.2f} -> {r['fused_score']:.2f}   ({r['pinterest_terms']})")
+    except Exception as e:
+        print(f"  Skipped ({type(e).__name__}: {e})")
+
     print("\nPhase 4 complete ✓")
 
 
