@@ -185,6 +185,11 @@ def refresh_cache(region: str = "IN") -> int:
 
 if __name__ == "__main__":
     import sys
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_BASE / ".env", override=False)
+    except Exception:
+        pass
     if "--refresh" in sys.argv:
         refresh_cache()
     else:

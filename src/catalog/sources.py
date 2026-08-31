@@ -185,10 +185,19 @@ class HMLocalSource(ProductSource):
 class SerpApiShoppingSource(ProductSource):
     name = "serpapi"
     _warned = False
+    # Free plan is 100 searches/month, so every distinct query is cached on disk
+    # for a day. Override the window with SERPAPI_CACHE_TTL (seconds).
+    _CACHE_DIR = _BASE / "data" / "catalog" / ".serpapi_cache"
+    _TTL = int(os.getenv("SERPAPI_CACHE_TTL", str(24 * 3600)))
 
     def __init__(self, gl: str = "in", hl: str = "en"):
         self.gl, self.hl = gl, hl
         self.enabled = bool(os.getenv("SERPAPI_KEY"))
+
+    def _cache_path(self, q: str):
+        import hashlib
+        h = hashlib.md5(f"{self.gl}|{self.hl}|{q}".encode()).hexdigest()[:16]
+        return self._CACHE_DIR / f"{h}.json"
 
     def search(self, query=None, product_types=None, tags=None, colours=None, limit=24):
         key = os.getenv("SERPAPI_KEY")
@@ -198,24 +207,38 @@ class SerpApiShoppingSource(ProductSource):
                 SerpApiShoppingSource._warned = True
             return []
         q = query or " ".join(tags or []) or " ".join(product_types or []) or "trending fashion"
+
+        cp = self._cache_path(q)
         try:
-            r = requests.get("https://serpapi.com/search", timeout=12, params={
-                "engine": "google_shopping", "q": q, "gl": self.gl, "hl": self.hl,
-                "num": min(limit, 40), "api_key": key,
-            })
-            if r.status_code != 200:
-                return []
-            results = r.json().get("shopping_results", [])
+            if cp.exists() and time.time() - cp.stat().st_mtime < self._TTL:
+                results = json.loads(cp.read_text(encoding="utf-8"))
+            else:
+                r = requests.get("https://serpapi.com/search", timeout=12, params={
+                    "engine": "google_shopping", "q": q, "gl": self.gl, "hl": self.hl,
+                    "google_domain": "google.co.in" if self.gl == "in" else "google.com",
+                    "num": min(limit, 40), "api_key": key,
+                })
+                if r.status_code != 200:
+                    return []
+                results = r.json().get("shopping_results", [])
+                try:
+                    self._CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    cp.write_text(json.dumps(results), encoding="utf-8")
+                except Exception:
+                    pass
         except Exception:
             return []
         out = []
         for it in results[:limit]:
             price = it.get("extracted_price")
+            direct = it.get("link") or ""
+            buy = direct if direct and "google." not in direct else (
+                it.get("product_link") or direct or it.get("link", ""))
             out.append({
                 "id": f"serp_{it.get('product_id') or abs(hash(it.get('link','')))}",
                 "source": "serpapi", "title": it.get("title", ""),
                 "brand": it.get("source", ""), "retailer": it.get("source", ""),
-                "buy_url": it.get("product_link") or it.get("link", ""),
+                "buy_url": buy,
                 "product_type": (product_types or [""])[0],
                 "colour": "", "gender": "unisex",
                 "price_min": price, "price_max": price,

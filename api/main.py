@@ -6,6 +6,16 @@ Endpoints: /health /recommend /trends /outfit /visual-search /explain /chat /cha
 """
 import os, sys, json, warnings
 from pathlib import Path
+
+# Load .env before anything reads os.getenv (auth secret, Supabase keys, API
+# keys). A bare `uvicorn api.main:app` does not otherwise pick it up.
+_BASE_DIR = Path(__file__).resolve().parent.parent
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_BASE_DIR / ".env", override=False)
+except Exception:
+    pass
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -19,7 +29,7 @@ from api.routes.products import router as products_router
 from api.routes.catalog  import router as catalog_router
 
 # Anchor all relative model/data paths to the project root regardless of CWD.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = _BASE_DIR
 os.chdir(BASE_DIR)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse

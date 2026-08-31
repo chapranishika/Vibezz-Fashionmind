@@ -21,6 +21,11 @@ sys.path.insert(0, str(REPO_ROOT))
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.pop("GEMINI_API_KEY", None)          # force demo mode in chat tests
 os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production-use-only")
+# Keep the test suite fully offline: an empty value survives load_dotenv(
+# override=False), so no live SerpApi / Pinterest calls (and no quota spend).
+os.environ["SERPAPI_KEY"] = ""
+os.environ["PINTEREST_ACCESS_TOKEN"] = ""
+os.environ["PINTEREST_ALLOW_UNOFFICIAL"] = ""
 
 
 def build_fake_M():
