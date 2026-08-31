@@ -242,10 +242,22 @@ def get_recommendations(customer_id: str, occasion: str = None,
             "recommendations":recs,"n_candidates":len(rows)}
 
 
+# Demand-forecast "trending" is only meaningful for wearable categories — the
+# raw H&M taxonomy also has Dog Wear, Umbrella, Waterbottle, Sleeping sack, etc.
+_GARMENT_TYPES = {
+    'Trousers','Jeans','Dress','Sweater','Cardigan','T-shirt','Top','Blouse','Shirt','Polo shirt',
+    'Jacket','Blazer','Coat','Hoodie','Vest top','Bodysuit','Skirt','Shorts','Jumpsuit/Playsuit',
+    'Garment Set','Leggings/Tights','Sneakers','Boots','Sandals','Ballerinas','Other shoe',
+    'Bag','Scarf','Belt','Hat/beanie','Hat/brim','Cap/peaked','Sunglasses','Earring','Necklace',
+    'Swimwear bottom','Swimsuit','Bikini top','Sunglasses',
+}
+
+
 def get_trend_report(category: str = None) -> dict:
     _load()
     lw  = _M['trend']['week'].max()
     rec = _M['trend'][_M['trend'].week==lw].sort_values('trend_score',ascending=False)
+    rec = rec[rec['product_type_name'].isin(_GARMENT_TYPES)]
     if category:
         rec = rec[rec['product_type_name'].str.contains(category,case=False,na=False)]
     top = rec.head(10)[['product_type_name','trend_score','sales','predicted']].copy()

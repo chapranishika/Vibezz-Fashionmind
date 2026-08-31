@@ -38,8 +38,10 @@ _HM_SEARCH = "https://www2.hm.com/en_in/search-results.html?q={q}"
 
 
 def _img(query: str) -> str:
-    # Redirect-based Unsplash source; the frontend may override with its own pool.
-    return f"https://source.unsplash.com/featured/480x600/?{urllib.parse.quote(query + ',fashion')}"
+    # No reliable keyword image service without an API key. Return empty and let
+    # the client pick a category image (the web UI maps product_type -> a photo
+    # pool); `image_query` is always set for any other consumer.
+    return ""
 
 
 def _match(hay: str, needles: list[str]) -> bool:

@@ -329,9 +329,7 @@ header {
 .hero-banner {
   height: 380px;
   border-radius: var(--r2);
-  background: #1A1A24;
-  background-size: cover;
-  background-position: center;
+  background: #1A1A24 url('https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200&auto=format&fit=crop&q=80') center/cover no-repeat;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -342,7 +340,7 @@ header {
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.6) 30%, transparent 100%);
+  background: linear-gradient(90deg, rgba(15, 10, 20, 0.82) 0%, rgba(15, 10, 20, 0.45) 55%, rgba(15, 10, 20, 0.15) 100%);
   z-index: 1;
 }
 
@@ -1846,7 +1844,7 @@ header {
           <div class="hero-overlay"></div>
           <div class="hero-content">
             <h2>Summer Collection '26</h2>
-            <p>Elevate your wardrobe with hyper-personalised recommendations tailored to your style centroid.</p>
+            <p>Rising trends from Pinterest, matched to real products across Myntra, Ajio, Nykaa &amp; more — plus picks tuned to your taste.</p>
             <button class="hero-btn" onclick="nav('explore')">Shop Collection</button>
           </div>
         </div>
@@ -1854,7 +1852,7 @@ header {
         <div class="stylist-promo-card">
           <div class="sp-top">
             <h3>AI Fashion Stylist</h3>
-            <p>Chat with our Gemini-powered AI expert. Get outfit pairings, trending predictions, and personal styling explanations in real-time.</p>
+            <p>Ask what's trending, shop a look, or get outfit pairings — the AI stylist calls the trend and recommendation engine live.</p>
           </div>
           <div class="sp-avatar-row">
             <div class="sp-avatars">
@@ -1916,7 +1914,7 @@ header {
       <div class="trending-categories-row" id="trend-pills"></div>
 
       <div class="section-hdr">
-        <h3>New Arrivals</h3>
+        <h3>Trending to Shop</h3>
       </div>
       <div class="h-scroll-container" id="new-arrivals"></div>
     </div>
@@ -1943,7 +1941,7 @@ header {
     <div class="page" id="page-explore">
       <div class="explore-header">
         <h2 id="explore-title">Explore Catalog</h2>
-        <div class="explore-meta" id="explore-count">Browse premium clothing matching your style centroid</div>
+        <div class="explore-meta" id="explore-count">Browse the H&amp;M catalogue the recommender is trained on</div>
       </div>
       <div class="products-grid" id="explore-grid" style="margin-top: 30px;"></div>
       <div style="display:flex; justify-content:center; margin-top:40px; margin-bottom:40px;" id="explore-load-more-container">
@@ -2197,104 +2195,92 @@ let curProduct = null, curSize = 'M';
 let chatHistory = [];
 
 /* High Quality Unsplash Photo Catalog Pools for Gen-Z diversity */
-const IMAGE_POOLS = {
-  'trousers': [
-    'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1604176354204-9268737828e4?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1509551388413-e18d0ac5d495?w=500&auto=format&fit=crop&q=80'
-  ],
-  'dress': [
-    'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1612336307429-8a898d10e223?w=500&auto=format&fit=crop&q=80'
-  ],
-  't-shirt': [
-    'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=500&auto=format&fit=crop&q=80'
-  ],
-  'tee': [
-    'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=500&auto=format&fit=crop&q=80'
-  ],
-  'jacket': [
-    'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1544441893-675973e31985?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500&auto=format&fit=crop&q=80'
-  ],
-  'bag': [
-    'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1598532187856-3b2363a37be7?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=500&auto=format&fit=crop&q=80'
-  ],
-  'shoes': [
-    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1539185441755-769473a23570?w=500&auto=format&fit=crop&q=80'
-  ],
-  'swimwear': [
-    'https://images.unsplash.com/photo-1508807526345-15e9b7f43db6?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1576016770956-debb63d900bb?w=500&auto=format&fit=crop&q=80'
-  ],
-  'skirt': [
-    'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=500&auto=format&fit=crop&q=80'
-  ],
-  'blouse': [
-    'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500&auto=format&fit=crop&q=80'
-  ],
-  'sweater': [
-    'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&auto=format&fit=crop&q=80'
-  ],
-  'coat': [
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=500&auto=format&fit=crop&q=80'
-  ]
+/* Verified Unsplash editorial fashion photos, grouped by garment family.
+   First substring match on the product type / tag wins; deterministic pick. */
+const U = id => `https://images.unsplash.com/photo-${id}?w=600&auto=format&fit=crop&q=80`;
+
+const IMG_POOLS = {
+  'dress':   ['1595777457583-95e059d581b8','1572804013309-59a88b7e92f1','1566174053879-31528523f8ae','1612336307429-8a898d10e223','1496747611176-843222e1e57c'].map(U),
+  'skirt':   ['1583496661160-fb5886a0aaaa','1591195853828-11db59a44f6b','1469334031218-e382a71b716b'].map(U),
+  'jumpsuit':['1583496661160-fb5886a0aaaa','1524504388940-b1c1722653e1'].map(U),
+  'jean':    ['1542272604-787c3835535d','1541099649105-f69ad21f3246','1594633312681-425c7b97ccd1'].map(U),
+  'trouser': ['1594633312681-425c7b97ccd1','1541099649105-f69ad21f3246','1445205170230-053b83016050'].map(U),
+  'cargo':   ['1594633312681-425c7b97ccd1','1445205170230-053b83016050'].map(U),
+  'short':   ['1591195853828-11db59a44f6b','1445205170230-053b83016050'].map(U),
+  'legging': ['1518459031867-a89b944bffe4','1506629082955-511b1aa562c8'].map(U),
+  't-shirt': ['1503342217505-b0a15ec3261c','1583743814966-8936f5b7be1a','1554568218-0f1715e72254'].map(U),
+  'tee':     ['1503342217505-b0a15ec3261c','1583743814966-8936f5b7be1a'].map(U),
+  'polo':    ['1485462537746-965f33f7f6a7','1503342217505-b0a15ec3261c'].map(U),
+  'shirt':   ['1485462537746-965f33f7f6a7','1596755094514-f87e34085b2c','1602810318383-e386cc2a3ccf'].map(U),
+  'blouse':  ['1434389677669-e08b4cac3105','1485462537746-965f33f7f6a7'].map(U),
+  'top':     ['1554568218-0f1715e72254','1485462537746-965f33f7f6a7','1434389677669-e08b4cac3105'].map(U),
+  'vest':    ['1618354691373-d851c5c3a990','1503341504253-dff4815485f1'].map(U),
+  'corset':  ['1618354691373-d851c5c3a990','1434389677669-e08b4cac3105'].map(U),
+  'sweater': ['1620799140408-edc6dcb6d633','1576566588028-4147f3842f27','1434389677669-e08b4cac3105'].map(U),
+  'knit':    ['1620799140408-edc6dcb6d633','1576566588028-4147f3842f27'].map(U),
+  'cardigan':['1611911813383-67769b37a149','1591047139829-d91aecb6caea'].map(U),
+  'hoodie':  ['1556821840-3a63f95609a7','1620799139507-2a76f79a2f4d'].map(U),
+  'blazer':  ['1591047139829-d91aecb6caea','1548036328-c9fa89d128fa','1507679799987-c73779587ccf'].map(U),
+  'jacket':  ['1551028719-00167b16eac5','1544441893-675973e31985','1548036328-c9fa89d128fa'].map(U),
+  'bomber':  ['1551028719-00167b16eac5','1544441893-675973e31985'].map(U),
+  'coat':    ['1539109136881-3be0616acf4b','1487222477894-8943e31ef7b2'].map(U),
+  'trench':  ['1539109136881-3be0616acf4b','1487222477894-8943e31ef7b2'].map(U),
+  'ballerina':['1460353581641-37baddab0fa2','1596703263926-eb0762ee17e4'].map(U),
+  'ballet':  ['1460353581641-37baddab0fa2','1596703263926-eb0762ee17e4'].map(U),
+  'loafer':  ['1533867617858-e7b97e060509','1549298916-b41d501d3772'].map(U),
+  'boot':    ['1608256246200-53e635b5b65f','1543163521-1bf539c55dd2'].map(U),
+  'sandal':  ['1603487742131-4160ec999306','1562273138-f46be4ebdf33'].map(U),
+  'sneaker': ['1595950653106-6c9ebd614d3a','1600185365483-26d7a4cc7519','1549298916-b41d501d3772'].map(U),
+  'shoe':    ['1595950653106-6c9ebd614d3a','1460353581641-37baddab0fa2','1549298916-b41d501d3772'].map(U),
+  'slipper': ['1603487742131-4160ec999306'].map(U),
+  'bag':     ['1584917865442-de89df76afd3','1553062407-98eeb64c6a62','1512436991641-6745cdb1723f'].map(U),
+  'tote':    ['1584917865442-de89df76afd3','1553062407-98eeb64c6a62'].map(U),
+  'scarf':   ['1520903920243-00d872a2d1c9','1601924994987-69e26d50dc26'].map(U),
+  'belt':    ['1553062407-98eeb64c6a62'].map(U),
+  'sunglass':['1511499767150-a48a237f0083','1572635196237-14b3f281503f'].map(U),
+  'earring': ['1535632066927-ab7c9ab60908','1611591437281-460bfbe1220a'].map(U),
+  'necklace':['1599643478518-a784e5dc4c8f','1611591437281-460bfbe1220a'].map(U),
+  'hat':     ['1521369909029-2afed882baee','1533055640609-24b498dfd74c'].map(U),
+  'cap':     ['1521369909029-2afed882baee'].map(U),
+  'beanie':  ['1576871337622-98d48d1cf531'].map(U),
+  'sock':    ['1586350977771-b3b0abd50c82','1618354691792-d1d42acfd860'].map(U),
+  'swim':    ['1570976447640-ac859083963f','1502716119720-b23a93e5fe1b'].map(U),
+  'bikini':  ['1570976447640-ac859083963f','1502716119720-b23a93e5fe1b'].map(U),
+  'bra':     ['1571513800374-df1bbe650e56'].map(U),
+  'underwear':['1571513800374-df1bbe650e56'].map(U),
+  'kurta':   ['1610030469983-98e550d6193c','1583391733956-3750e0ff4e8b'].map(U),
+  'saree':   ['1610030469983-98e550d6193c','1583391733956-3750e0ff4e8b'].map(U),
+  'co-ord':  ['1524504388940-b1c1722653e1','1483118714900-540cf339fd46'].map(U),
 };
 
-const FALLBACK_IMAGES = [
-  'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1485230895905-ec40ba36b9bc?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1566207274740-0f8cf6b7d5a5?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1581044777550-4cfa60707c03?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=80'
-];
+const IMG_GENERIC = ['1441984904996-e0b6ba687e04','1490481651871-ab68de25d43d','1483985988355-763728e1935b',
+  '1479064555552-3ef4979f8908','1509631179647-0177331693ae','1515372039744-b8f02a3ae446',
+  '1502716119720-b23a93e5fe1b','1524504388940-b1c1722653e1','1521572163474-6864f9cf17ab',
+  '1483118714900-540cf339fd46','1475180098004-ca77a66827be','1467043198406-dc953a3defa0'].map(U);
+
+function _seedInt(s) {
+  s = String(s || 'x'); let h = 7;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
 
 function getProductFallbackImage(productType, articleId) {
-  const cleanType = (productType || '').toLowerCase();
-  const match = Object.keys(IMAGE_POOLS).find(k => cleanType.includes(k));
-  const seed = (parseInt(articleId) || 0) + [...String(articleId)].reduce((sum, c) => sum + c.charCodeAt(0), 0);
-  
-  if (match) {
-    const pool = IMAGE_POOLS[match];
-    return pool[seed % pool.length];
-  }
-  return FALLBACK_IMAGES[seed % FALLBACK_IMAGES.length];
+  const t = String(productType || '').toLowerCase().replace(/[_/]/g, ' ');
+  let pool = IMG_GENERIC;
+  for (const k in IMG_POOLS) { if (t.includes(k)) { pool = IMG_POOLS[k]; break; } }
+  return pool[_seedInt(articleId || productType) % pool.length];
 }
 
 function getProductImage(productType, articleId) {
-  if (!articleId || articleId === '999' || String(articleId).length < 5) {
-    return getProductFallbackImage(productType, articleId);
+  // Real H&M photos are served at ${API}/images/... only when the backend has
+  // them mounted; otherwise this 404s and flashes a broken image. Use a
+  // category-matched image directly and let the backend image win via <img
+  // onerror> chaining is not worth the flash — so default to the good one.
+  if (window.__HM_IMAGES__ && articleId && String(articleId).length >= 5) {
+    const s = String(articleId).padStart(10, '0');
+    return `${API}/images/${s.substring(0, 3)}/${s}.jpg`;
   }
-  const articleStr = String(articleId).padStart(10, '0');
-  const folder = articleStr.substring(0, 3);
-  return `${API}/images/${folder}/${articleStr}.jpg`;
+  return getProductFallbackImage(productType, articleId);
 }
 
 function getProductDescription(p) {
@@ -2390,10 +2376,10 @@ function trendCard(p) {
   const price = p.price_min
     ? `₹${p.price_min}${p.price_max && p.price_max !== p.price_min ? '–' + p.price_max : ''}${p.price_is_estimate ? '*' : ''}`
     : 'See price on site';
-  const img = p.image || `https://source.unsplash.com/featured/400x500/?${encodeURIComponent((p.image_query||p.title)+',fashion')}`;
+  const img = p.image || getProductFallbackImage(p.product_type || (p.tags && p.tags[0]) || '', p.id);
   return `
     <div class="product-card">
-      <div class="pc-img-wrap"><img src="${img}" alt="" loading="lazy" onerror="this.style.opacity=.15"></div>
+      <div class="pc-img-wrap"><img src="${img}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${getProductFallbackImage('', p.id || p.title)}'"></div>
       <div class="pc-info">
         <div class="pc-brand">${p.brand || p.retailer || ''}</div>
         <div class="pc-title">${p.title || ''}</div>
@@ -2440,7 +2426,7 @@ async function buildLook() {
         <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px">
           ${(d.look || []).map(x => `
             <a href="${x.buy_url}" target="_blank" rel="noopener noreferrer" style="min-width:150px;text-decoration:none;color:inherit">
-              <img src="${x.image || `https://source.unsplash.com/featured/300x380/?${encodeURIComponent((x.image_query||x.title)+',fashion')}`}" style="width:150px;height:190px;object-fit:cover;border-radius:10px" onerror="this.style.opacity=.15">
+              <img src="${x.image || getProductFallbackImage(x.product_type || x.slot || '', x.id || x.title)}" style="width:150px;height:190px;object-fit:cover;border-radius:10px" onerror="this.onerror=null;this.src='${getProductFallbackImage('', x.title)}'">
               <div style="font-size:11px;text-transform:uppercase;color:var(--t2);margin-top:6px">${x.slot}</div>
               <div style="font-size:13px;font-weight:600">${x.title}</div>
               <div style="font-size:12px;color:var(--t2)">${x.retailer} · ₹${x.price_min||'?'}</div>
@@ -2571,10 +2557,10 @@ function productCard(p, wish = false) {
       </svg>
     </button>
     <div class="pc-img-wrap">
-      <img src="${image}" onerror="this.onerror=null; this.src='${fallback}';" alt="${p.product_name || 'Fashion Item'}">
+      <img src="${image}" onerror="this.onerror=null; this.src='${fallback !== image ? fallback : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=500&auto=format&fit=crop&q=80'}';" alt="${p.product_name || 'Fashion Item'}">
     </div>
     <div class="pc-info">
-      <div class="pc-brand">${p.product_group_name || 'H&M'}</div>
+      <div class="pc-brand">H&amp;M<span style="color:var(--t2);font-weight:500;text-transform:none"> · ${p.product_type_name || 'Apparel'}</span></div>
       <div class="pc-title">${p.product_name || 'Cotton Styled Shirt'}</div>
       <div class="pc-price-row">
         <span class="pc-price">${fmtPrice(p.avg_price || p.price)}</span>
@@ -2608,31 +2594,27 @@ async function loadHome() {
     document.getElementById('foryou-grid').innerHTML = '<div style="grid-column:1/-1; padding:40px; text-align:center; color:var(--t2)">Unable to load personalized catalog. Ensure the FastAPI backend is running.</div>';
   }
 
-  // Trend pills
+  // Trend pills — rising on Pinterest (click -> Trending tab, shop it)
   try {
-    const r = await fetch(`${API}/trends`);
+    const r = await fetch(`${API}/catalog/trends`);
     const d = await r.json();
     const tp = document.getElementById('trend-pills');
-    const trends = (d.trending || []).slice(0, 6);
-    tp.innerHTML = trends.map(t => `
-      <div class="trend-pill" onclick="filterCat(null,'${t.product_type_name}')">
-        <span class="tp-name">${t.product_type_name}</span>
-        <span class="tp-score">↑ ${Math.round((t.trend_score || 0.7) * 100)}% Match</span>
+    tp.innerHTML = (d.rising || []).slice(0, 8).map(t => `
+      <div class="trend-pill" onclick="nav('trending'); setTimeout(()=>shopTrend(${JSON.stringify(t.keyword).replace(/"/g,'&quot;')}), 60)">
+        <span class="tp-name" style="text-transform:capitalize">${t.keyword}</span>
+        <span class="tp-score">↑ ${t.pct_change || t.score + '%'}</span>
       </div>
     `).join('');
   } catch (e) {
     document.getElementById('trend-pills').innerHTML = '';
   }
 
-  // New arrivals
+  // New arrivals — trend products from the aggregator (real retailers)
   try {
-    const r = await fetch(`${API}/recommend`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: 'new_user_1', n: 6 })
-    });
+    const r = await fetch(`${API}/catalog/products?limit=10&source=curated`);
     const d = await r.json();
-    document.getElementById('new-arrivals').innerHTML = (d.recommendations || []).map(p => productCard(p)).join('');
+    document.getElementById('new-arrivals').innerHTML =
+      (d.products || []).map(p => `<div style="min-width:230px;max-width:230px">${trendCard(p)}</div>`).join('');
   } catch (e) {
     document.getElementById('new-arrivals').innerHTML = '';
   }
