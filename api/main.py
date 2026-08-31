@@ -78,6 +78,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
+# Serve the extracted subset of real H&M product photos, if present.
+from fastapi.staticfiles import StaticFiles
+_IMG_DIR = BASE_DIR / "data" / "raw" / "images"
+IMAGES_MOUNTED = _IMG_DIR.is_dir() and any(_IMG_DIR.iterdir())
+if IMAGES_MOUNTED:
+    app.mount("/images", StaticFiles(directory=str(_IMG_DIR)), name="images")
+
 # ── Request models ─────────────────────────────────────────────────
 # Cold-start recommendations are handled inside
 # src.genai.stylist_chatbot.get_recommendations (age_bucket × club segment
@@ -113,7 +120,8 @@ class TextSearchReq(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "ok", "models_loaded": len(M), "service": "FashionMind"}
+    return {"status": "ok", "models_loaded": len(M), "service": "FashionMind",
+            "images_mounted": IMAGES_MOUNTED}
 
 @app.post("/recommend")
 def recommend(req: RecommendReq):

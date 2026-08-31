@@ -36,6 +36,21 @@ _CATALOG_JSON = _BASE / "data" / "catalog" / "trend_products.json"
 
 _HM_SEARCH = "https://www2.hm.com/en_in/search-results.html?q={q}"
 
+# Google Shopping takes trend names literally ("butter yellow" -> Amul Butter,
+# "cargo" -> shipping, "sheer" -> curtains). Anchor every query to apparel and
+# drop results that are obviously not clothing.
+_FASHION_ANCHOR = "clothing"
+_NON_FASHION = (
+    "butter", "ghee", "dairy", "milk", "paneer", "grocery", "kitchen", "cas ",
+    " cas", "sigma-aldrich", "sigma aldrich", "reagent", "analytical", "chemical",
+    "powder", "pigment", "dye ", "solvent", "bigbasket", "blinkit", "zepto",
+    "jiomart", "instamart", "supplement", "protein ", "capsule", "tablet",
+    "paint", "wallpaper", "curtain", "bedsheet", "cushion", "towel", "soap",
+    "shampoo", "cream ", "lotion", "serum", "toy", "furniture", "mattress",
+)
+_NON_FASHION_SOURCES = ("bigbasket", "blinkit", "zepto", "jiomart", "starquik",
+                        "sigma-aldrich", "amazon fresh", "swiggy")
+
 
 def _img(query: str) -> str:
     # No reliable keyword image service without an API key. Return empty and let
@@ -208,14 +223,22 @@ class SerpApiShoppingSource(ProductSource):
                 print("[catalog] SerpApiShoppingSource inactive — set SERPAPI_KEY to enable live products.")
                 SerpApiShoppingSource._warned = True
             return []
-        q = query or " ".join(tags or []) or " ".join(product_types or []) or "trending fashion"
+        base = query or " ".join(tags or []) or " ".join(product_types or []) or "trending fashion"
+        pt = (product_types or [""])[0].lower()
+        # e.g. "butter yellow" + "shirt" + "clothing" -> stays in apparel
+        parts = [base]
+        if pt and pt not in base.lower():
+            parts.append(pt)
+        if _FASHION_ANCHOR not in base.lower():
+            parts.append(_FASHION_ANCHOR)
+        q = " ".join(parts).strip()
 
         cp = self._cache_path(q)
         try:
             if cp.exists() and time.time() - cp.stat().st_mtime < self._TTL:
                 results = json.loads(cp.read_text(encoding="utf-8"))
             else:
-                r = requests.get("https://serpapi.com/search", timeout=12, params={
+                r = requests.get("https://serpapi.com/search", timeout=9, params={
                     "engine": "google_shopping", "q": q, "gl": self.gl, "hl": self.hl,
                     "google_domain": "google.co.in" if self.gl == "in" else "google.com",
                     "num": min(limit, 40), "api_key": key,
@@ -231,8 +254,14 @@ class SerpApiShoppingSource(ProductSource):
         except Exception:
             return []
         out = []
-        for it in results[:limit]:
+        for it in results:
+            title = (it.get("title") or "").lower()
+            src = (it.get("source") or "").lower()
+            if any(w in title for w in _NON_FASHION) or any(s in src for s in _NON_FASHION_SOURCES):
+                continue
             price = it.get("extracted_price")
+            if price and price < 149:          # groceries / sachets, not garments
+                continue
             direct = it.get("link") or ""
             buy = direct if direct and "google." not in direct else (
                 it.get("product_link") or direct or it.get("link", ""))
@@ -251,6 +280,8 @@ class SerpApiShoppingSource(ProductSource):
                 "look": "", "tags": tags or [],
                 "rating": it.get("rating"), "reviews": it.get("reviews"),
             })
+            if len(out) >= limit:
+                break
         return out
 
 
@@ -273,11 +304,13 @@ def aggregate_search(query=None, product_types=None, tags=None, colours=None,
     srcs = sorted(active_sources(), key=lambda s: order.get(s.name, 9))
     if sources:
         srcs = [s for s in srcs if s.name in sources]
-    per = max(4, limit // max(1, len(srcs)))
+    # SerpApi is the deep well of live inventory — let it return most of the set;
+    # curated leads for on-brand picks, hm-demo only fills the tail.
+    quota = {"serpapi": limit, "curated": max(6, limit // 2), "hm-demo": max(3, limit // 4)}
     for s in srcs:
         try:
             rows = s.search(query=query, product_types=product_types, tags=tags,
-                            colours=colours, limit=per + 6)
+                            colours=colours, limit=quota.get(s.name, limit))
         except Exception:
             rows = []
         for r in rows:
