@@ -175,12 +175,31 @@ def refresh_cache(region: str = "IN") -> int:
         print("No live source available (set PINTEREST_ACCESS_TOKEN or "
               "PINTEREST_ALLOW_UNOFFICIAL=1). Cache unchanged.")
         return 0
+    _write_cache(rows, region)
+    print(f"Wrote {len(rows)} keywords to {_CACHE_PATH}")
+    return len(rows)
+
+
+def _write_cache(rows: list[dict], region: str) -> None:
     _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     _CACHE_PATH.write_text(json.dumps(
         {"region": region, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-         "source": rows[0]["source"], "keywords": rows}, indent=2), encoding="utf-8")
-    print(f"Wrote {len(rows)} keywords to {_CACHE_PATH}")
-    return len(rows)
+         "source": rows[0]["source"] if rows else "manual", "keywords": rows},
+        indent=2), encoding="utf-8")
+    _runtime_cache.clear()
+
+
+def set_cache_from_keywords(keywords: list[str], region: str = "IN") -> int:
+    """Manually populate the cache from a keyword list you copied off the public
+    Pinterest Trends site (trends.pinterest.com) — no API access needed.
+    Order = priority; scores are auto-assigned high→low."""
+    kws = [k.strip().lower() for k in keywords if k.strip()]
+    n = len(kws)
+    rows = [{"keyword": k, "score": max(40, 100 - int(i * 60 / max(n - 1, 1))),
+             "pct_change": None, "source": "manual"} for i, k in enumerate(kws)]
+    _write_cache(rows, region)
+    print(f"Wrote {n} manual keywords to {_CACHE_PATH}")
+    return n
 
 
 if __name__ == "__main__":
@@ -192,6 +211,9 @@ if __name__ == "__main__":
         pass
     if "--refresh" in sys.argv:
         refresh_cache()
+    elif "--set" in sys.argv:
+        raw = sys.argv[sys.argv.index("--set") + 1]
+        set_cache_from_keywords(raw.split(","))
     else:
         for row in get_pinterest_trends(limit=15):
             print(f"  {row['score']:3d}  {row['keyword']:<28} "
