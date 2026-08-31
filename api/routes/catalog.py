@@ -61,3 +61,36 @@ def catalog_product(product_id: str):
     if not p:
         raise HTTPException(404, "Product not found")
     return p
+
+
+@router.get("/metrics", tags=["insights"])
+def metrics():
+    """Real evaluation numbers for the Dashboard — read from the training
+    outputs, never invented. Missing files simply omit their block."""
+    import csv, json, os
+    from pathlib import Path
+    base = Path(__file__).resolve().parent.parent.parent / "data" / "features"
+    out: dict = {}
+
+    def _csv(name):
+        p = base / name
+        if not p.exists():
+            return []
+        with open(p, newline="") as f:
+            return [ {k: (float(v) if _isnum(v) else v) for k, v in row.items()}
+                     for row in csv.DictReader(f) ]
+
+    def _isnum(v):
+        try:
+            float(v); return True
+        except (TypeError, ValueError):
+            return False
+
+    out["held_out"] = _csv("final_metrics.csv")          # popularity / ALS / full pipeline, held-out test users
+    out["candidate_eval"] = _csv("cf_results.csv")        # popularity / ALS / BPR, 3k users
+    ab = _csv("ab_test_results.csv")
+    out["paired_comparison"] = ab[0] if ab else {}
+    mc = base / "model_card.json"
+    if mc.exists():
+        out["model_card"] = json.loads(mc.read_text(encoding="utf-8"))
+    return out

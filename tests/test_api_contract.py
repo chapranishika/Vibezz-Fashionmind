@@ -118,6 +118,16 @@ def test_catalog_outfit_endpoint(client):
     assert len(r.json()["look"]) >= 2
 
 
+def test_catalog_metrics_endpoint(client):
+    r = client.get("/catalog/metrics")
+    assert r.status_code == 200
+    body = r.json()
+    # blocks are present when the training-output files exist; shape is stable
+    assert set(body) <= {"held_out", "candidate_eval", "paired_comparison", "model_card"}
+    if body.get("held_out"):
+        assert "recall@10" in body["held_out"][0]
+
+
 def test_compare_cart_flow(client):
     su = client.post("/auth/signup", json={
         "email": "cmp@x.com", "password": "comparepass1", "name": "Cee"})
