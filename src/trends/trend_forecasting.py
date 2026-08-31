@@ -170,6 +170,18 @@ def run():
     mae    = mean_absolute_error(va['sales'], y_pred)
     mape   = mean_absolute_percentage_error(va['sales'], y_pred)*100
     print(f"  Best iter: {model.best_iteration_} | MAE: {mae:.1f} | MAPE: {mape:.1f}%")
+    try:
+        import json as _j
+        _p = 'data/features/model_card.json'
+        _mc = {}
+        try: _mc = _j.load(open(_p))
+        except Exception: pass
+        _mc['trend_forecast'] = {'mae': round(float(mae),1), 'mape_pct': round(float(mape),1),
+                                 'weeks': int(weekly['week'].nunique()),
+                                 'target': 'weekly sales per product type'}
+        _j.dump(_mc, open(_p,'w'), indent=2)
+    except Exception:
+        pass
 
     wm = wm.copy()
     wm['predicted']     = np.expm1(model.predict(wm[FEAT].fillna(0)))

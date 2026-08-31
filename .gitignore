@@ -9,7 +9,8 @@ venv/
 /models
 /env
 data/raw/
-data/features/
+data/features/*
+!data/features/model_card.json
 *.csv
 *.parquet
 
@@ -53,3 +54,4 @@ Thumbs.db
 
 .vercel
 .env*.local
+frontend/index.*.html

@@ -16,7 +16,9 @@ Outputs : models/als_model.pkl
           data/features/user_history.pkl
 """
 
-import os, pickle, warnings
+import os, gc, pickle, warnings
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '2')   # cap BLAS scratch memory
+os.environ.setdefault('OMP_NUM_THREADS', '2')
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -51,7 +53,9 @@ def run():
     #   test   = SPLIT_DATE   .. WINDOW_END   (future holdout — never fit on)
     # The split is strictly temporal, so evaluation is a true "predict the
     # next weeks" task rather than a random hold-out.
-    WINDOW_START, SPLIT_DATE, WINDOW_END = '2020-06-01', '2020-09-08', '2020-09-22'
+    # ~4.5-month window — as long as this 4 GB-free box can hold in memory
+    # alongside the ALS factor matrices.
+    WINDOW_START, SPLIT_DATE, WINDOW_END = '2020-05-01', '2020-09-08', '2020-09-22'
     print(f"\n[1/7] Loading transactions (chunked) — window {WINDOW_START} .. {WINDOW_END}, "
           f"train/test split at {SPLIT_DATE}...")
     CUTOFF  = pd.Timestamp(SPLIT_DATE)
@@ -78,16 +82,30 @@ def run():
     train_tx = tx[tx.t_dat <= CUTOFF]
     valid_tx = tx[tx.t_dat >  CUTOFF]
 
-    # Vectorised aggregation (replaces the per-group Python loop).
+    # Vectorised aggregation. Keep the last 50 items per user (an 8-month window
+    # means heavy shoppers have far more than 20 purchases — more history is
+    # more CF signal).
+    HIST_N = 50
     user_price_acc = train_tx.groupby('customer_id')['price'].apply(list).to_dict()
     user_items_acc = (train_tx.sort_values('t_dat')
                               .groupby('customer_id')['article_id']
-                              .apply(lambda s: s.tolist()[-20:]).to_dict())
+                              .apply(lambda s: s.tolist()[-HIST_N:]).to_dict())
     art_price_acc  = tx.groupby('article_id')['price'].apply(list).to_dict()
-    valid_rows     = [valid_tx[['customer_id', 'article_id']]]
+    valid_rows     = [valid_tx[['customer_id', 'article_id']].copy()]
+    cs_tx          = train_tx[['customer_id', 'article_id']].copy()   # for cold-start [5/7]
 
     print(f"  train: {len(train_tx):,} rows / {len(user_items_acc):,} users | "
           f"holdout: {len(valid_tx):,} rows")
+    del tx, train_tx, valid_tx; gc.collect()
+    try:
+        import json as _j
+        _j.dump({"training_window": {"train": f"{WINDOW_START} .. {SPLIT_DATE}",
+                                     "holdout": f"{SPLIT_DATE} .. {WINDOW_END}",
+                                     "months": round((pd.Timestamp(SPLIT_DATE)-pd.Timestamp(WINDOW_START)).days/30.4, 1)},
+                 "window_transactions": int(n_total)},
+                open('data/features/model_card.json', 'w'), indent=2)
+    except Exception:
+        pass
 
     # Save pre-computed summaries (avoids re-loading CSV in later phases)
     user_avg_price = {c: np.mean(p) for c,p in user_price_acc.items()}
@@ -120,8 +138,12 @@ def run():
             keys.append(cid)
             values.append(aid)
     train_df = pd.DataFrame({'customer_id': keys, 'article_id': values})
+    del keys, values; gc.collect()
     active = train_df.groupby('customer_id').size()
     train_df = train_df[train_df.customer_id.isin(active[active >= 5].index)]
+    # drop long-tail items (bought < 3× in the window) — trims the matrix width
+    icnt = train_df.groupby('article_id').size()
+    train_df = train_df[train_df.article_id.isin(icnt[icnt >= 3].index)]
 
     train_df['user_idx'] = train_df['customer_id'].astype('category').cat.codes
     train_df['item_idx'] = train_df['article_id'].astype('category').cat.codes
@@ -144,6 +166,7 @@ def run():
     pickle.dump({'enc':item_enc,'dec':{v:k for k,v in item_enc.items()}},
                 open('models/item_encoder.pkl','wb'))
     print(f"  Matrix: {n_u:,} users × {n_i:,} items | density: {matrix.nnz/(n_u*n_i)*100:.4f}%")
+    del train_df, grp, active, icnt; gc.collect()
 
     # ── Train ALS ─────────────────────────────────────────────────
     print("\n[3/7] Training ALS...")
@@ -177,12 +200,17 @@ def run():
     cust_raw['age_bucket'] = pd.cut(cust_raw['age'], bins=[0,25,35,50,200],
                                     labels=['16-25','26-35','36-50','50+']).astype('object')
     cust_raw['club'] = cust_raw['club_member_status'].fillna('NONE').str.upper()
+    cust_raw['seg'] = cust_raw['age_bucket'].astype(str) + '|' + cust_raw['club']
 
-    seg_tx = (train_tx[['customer_id','article_id']]
-              .merge(cust_raw[['customer_id','age_bucket','club']], on='customer_id', how='inner')
-              .dropna(subset=['age_bucket','club']))
-    seg_pop = (seg_tx.groupby(['age_bucket','club','article_id']).size()
-                     .reset_index(name='count'))
+    # map (not merge) the segment onto each transaction row — a 10M-row merge
+    # against 1.4M customers OOMs on a small box; a dict .map does not.
+    seg_map = cust_raw.set_index('customer_id')['seg'].to_dict()
+    seg_tx = cs_tx
+    seg_tx['seg'] = seg_tx['customer_id'].map(seg_map)
+    seg_tx = seg_tx[seg_tx['seg'].notna() & ~seg_tx['seg'].str.startswith('nan|')]
+    seg_pop = seg_tx.groupby(['seg', 'article_id']).size().reset_index(name='count')
+    seg_pop[['age_bucket', 'club']] = seg_pop['seg'].str.split('|', n=1, expand=True)
+    seg_pop = seg_pop.drop(columns='seg')
     seg_pop['max_c'] = seg_pop.groupby(['age_bucket','club'])['count'].transform('max')
     seg_pop['score'] = seg_pop['count'] / seg_pop['max_c']
     seg_pop['rk'] = seg_pop.groupby(['age_bucket','club'])['count'] \
@@ -192,7 +220,7 @@ def run():
               .reset_index(drop=True))
     seg_df.to_parquet('data/features/cold_start_popular.parquet', index=False)
 
-    glob = train_tx.groupby('article_id').size().reset_index(name='count') \
+    glob = cs_tx.groupby('article_id').size().reset_index(name='count') \
                    .sort_values('count', ascending=False)
     glob['score'] = glob['count'] / glob['count'].max()
     pop = glob                      # used by the eval block below (raw string IDs)
@@ -240,13 +268,14 @@ def run():
         print(f"  │ {r['model']:<23s}  │  {r['recall@10']:.4f}    │  {r['ndcg@10']:.4f}  │  {r['map@12']:.4f}  │")
     print("  └─────────────────────────┴────────────┴──────────┴──────────┘")
 
-    # ── Candidate generation ──────────────────────────────────────
-    print("\n[7/7] Generating top-500 candidates (10k users)...")
+    # ── Candidate generation (sample dump for inspection) ────────
+    # The re-ranker builds its own candidates fresh; this is a small artefact.
+    print("\n[7/7] Generating top-200 candidates (3k users)...")
     records = []
-    for uidx in range(min(10_000, n_u)):
+    for uidx in range(min(3_000, n_u)):
         cid = user_enc[uidx]
         try:
-            ids, scores = als.recommend(uidx, matrix[uidx], N=500,
+            ids, scores = als.recommend(uidx, matrix[uidx], N=200,
                                          filter_already_liked_items=True)
             for rank,(iidx,sc) in enumerate(zip(ids, scores)):
                 records.append({'customer_id':cid,'article_id':item_enc[int(iidx)],

@@ -1,63 +1,60 @@
 """
-Extract a small subset of the H&M product photos — just the article_ids the app
-actually surfaces (cold-start pop + candidates) — from the raw zips into
-data/raw/images/<prefix>/<id>.jpg so the API can serve them at /images/.
+Extract every H&M product photo present in the raw zips into
+data/raw/images/<prefix>/<id>.jpg, resized to 512px on the long edge so the
+whole set is a couple of GB, not 15. The API serves them at /images/.
 
 Run: python scripts/extract_hm_images.py
 """
 import io
 import os
-import sys
+import time
 import zipfile
 from pathlib import Path
 
-import pandas as pd
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = Path(os.environ.get("HM_RAW_DIR", r"D:\fashionmind_data\raw"))
 OUT = ROOT / "data" / "raw" / "images"
 ZIPS = ["010 (2).zip", "021.zip", "031.zip", "041.zip", "046.zip", "051.zip", "061.zip"]
-
-
-def wanted_ids() -> set[str]:
-    ids: set[str] = set()
-    for f in ("cold_start_popular", "cold_start_popular_global", "final_recommendations"):
-        p = ROOT / "data" / "features" / f"{f}.parquet"
-        if p.exists():
-            ids |= set(pd.read_parquet(p)["article_id"].astype(str))
-    cf = ROOT / "data" / "features" / "cf_candidates.parquet"
-    if cf.exists():
-        ids |= set(pd.read_parquet(cf)["article_id"].astype(str).head(40000))
-    return {i.zfill(10) for i in ids if i.isdigit()}
+EDGE, Q = 512, 82
 
 
 def main() -> None:
-    ids = wanted_ids()
-    want_names = {f"{i[:3]}/{i}.jpg" for i in ids}
-    print(f"{len(ids):,} article_ids wanted")
     OUT.mkdir(parents=True, exist_ok=True)
-    got = 0
+    done = {p.name for p in OUT.rglob("*.jpg")}
+    print(f"{len(done):,} already extracted")
+    t0, n, skipped, err = time.time(), 0, 0, 0
     for zn in ZIPS:
         zp = RAW / zn
         if not zp.exists():
-            print(f"  skip {zn} (not found)")
+            print(f"  skip {zn} (missing)")
             continue
         with zipfile.ZipFile(zp) as zf:
-            members = [n for n in zf.namelist() if n in want_names]
-            if not members:
-                continue
-            print(f"  {zn}: extracting {len(members):,}...")
+            members = [m for m in zf.namelist() if m.lower().endswith(".jpg")]
+            print(f"  {zn}: {len(members):,} images")
             for m in members:
-                dst = OUT / m
-                if dst.exists():
-                    got += 1
+                name = m.split("/")[-1]
+                if name in done:
+                    skipped += 1
                     continue
+                dst = OUT / m
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(m) as src, open(dst, "wb") as out:
-                    out.write(src.read())
-                got += 1
-    size_mb = sum(f.stat().st_size for f in OUT.rglob("*.jpg")) / 1e6
-    print(f"done — {got:,} images in {OUT}  ({size_mb:.0f} MB)")
+                try:
+                    im = Image.open(io.BytesIO(zf.read(m))).convert("RGB")
+                    w, h = im.size
+                    if max(w, h) > EDGE:
+                        s = EDGE / max(w, h)
+                        im = im.resize((round(w * s), round(h * s)), Image.LANCZOS)
+                    im.save(dst, "JPEG", quality=Q, optimize=True)
+                    n += 1
+                    if n % 2000 == 0:
+                        print(f"    {n:,} written · {time.time()-t0:.0f}s")
+                except Exception:
+                    err += 1
+    size_gb = sum(f.stat().st_size for f in OUT.rglob("*.jpg")) / 1e9
+    print(f"done — {n:,} new, {skipped:,} skipped, {err} errors · "
+          f"{len(list(OUT.rglob('*.jpg'))):,} images total, {size_gb:.2f} GB · {time.time()-t0:.0f}s")
 
 
 if __name__ == "__main__":

@@ -437,24 +437,6 @@ TOOL_DECLARATIONS = [
          "customer_id":{"type":"string"},
          "article_id": {"type":"string"}
      },"required":["customer_id","article_id"]}},
-    {"name":"get_pinterest_trends",
-     "description":"Currently rising fashion searches on Pinterest (India), with a score 0-100 and week-over-week change. Use for 'what's trending', 'latest ideas', 'what should I try this season'.",
-     "parameters":{"type":"object","properties":{
-         "category":{"type":"string","description":"optional keyword filter, e.g. 'jeans', 'dress'"}
-     }}},
-    {"name":"shop_the_trend",
-     "description":"Turn a trend keyword (e.g. 'barrel jeans', 'balletcore', 'quiet luxury') into buyable products with links to Indian retailers (Myntra/Ajio/Nykaa/H&M...). Use after get_pinterest_trends when the user wants to actually shop a trend.",
-     "parameters":{"type":"object","properties":{
-         "keyword":{"type":"string"},
-         "budget_max":{"type":"number","description":"max price per item in INR"},
-         "n":{"type":"integer","description":"number of products (default 8)"}
-     },"required":["keyword"]}},
-    {"name":"build_trend_outfit",
-     "description":"Assemble a complete outfit (top/dress + bottom + shoes + accessory) for a trend keyword, with per-item retailer links and an estimated total.",
-     "parameters":{"type":"object","properties":{
-         "keyword":{"type":"string"},
-         "budget_max":{"type":"number","description":"max price per item in INR"}
-     },"required":["keyword"]}},
 ]
 
 TOOL_MAP = {
@@ -462,28 +444,21 @@ TOOL_MAP = {
     "get_trend_report":      get_trend_report,
     "get_outfit_suggestion": get_outfit_suggestion,
     "explain_recommendation":explain_recommendation,
-    "get_pinterest_trends":  get_pinterest_trends,
-    "shop_the_trend":        shop_the_trend,
-    "build_trend_outfit":    build_trend_outfit,
 }
 
-SYSTEM_PROMPT = """You are FashionMind Stylist, an expert AI fashion assistant. You pair a personalised recommendation engine (trained on H&M purchase data) with a live Pinterest trend feed and a shopping aggregator that links out to Indian retailers.
+SYSTEM_PROMPT = """You are the Vibezz Stylist, the assistant for a personalised H&M fashion recommender (ALS candidate retrieval + a LightGBM LambdaRank re-ranker over 13 signals, with SHAP explanations).
 
 Tools:
-- get_recommendations: personalised picks for a known customer, with SHAP reasons
-- get_trend_report: demand-forecast trends (LightGBM) + a pinterest_rising list
-- get_pinterest_trends: currently rising Pinterest fashion searches (score 0-100)
-- shop_the_trend: turn a trend keyword into buyable products with retailer links
-- build_trend_outfit: assemble a full look (top/dress + bottom + shoes + accessory) for a trend
-- get_outfit_suggestion: compatible pairings from the trained catalogue
-- explain_recommendation: why an item was recommended (SHAP)
+- get_recommendations: personalised picks for a customer, each with SHAP reasons
+- explain_recommendation: the SHAP reasons a specific item was recommended
+- get_trend_report: which product types are trending (LightGBM demand forecast)
+- get_outfit_suggestion: compatible upper/lower pairings from the catalogue
 
 Guidelines:
-- For "what's trending / latest ideas": call get_pinterest_trends, then offer to shop_the_trend or build_trend_outfit for the ones the user likes.
-- Products come from an aggregator: every item has a buy_url that opens the retailer's own site. Prices flagged price_is_estimate are category estimates — say "confirm on the retailer" rather than quoting them as exact.
-- Be specific: name product types, colours, retailers, and the trend a pick reflects.
-- Explain the 'why' using SHAP reasons where present (↑ = positive signal).
-- Keep it warm and concise; format item lists clearly.
+- Ground every answer in tool output — real article IDs, product types, colours, prices, and the SHAP reasons (a leading ↑ means the feature pushed the score up).
+- If asked "why was this recommended", call explain_recommendation.
+- For occasion requests ("work", "brunch"), call get_recommendations and pick items whose type/colour fit, explaining the match.
+- Be warm and concise; format item lists clearly. Do not invent items or prices.
 """
 
 

@@ -40,7 +40,9 @@ def list_products(
             query = query.ilike("product_name", f"%{q}%")
         offset = (page - 1) * page_size
         res = query.order("popularity_score", desc=True).range(offset, offset + page_size - 1).execute()
-        return {"products": res.data or [], "page": page, "page_size": page_size}
+        if not res.data:
+            raise RuntimeError("articles table is empty — use the local parquet catalogue")
+        return {"products": res.data, "page": page, "page_size": page_size}
     except Exception as e:
         # Local Pandas Fallback
         _load()

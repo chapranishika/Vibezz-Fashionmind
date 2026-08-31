@@ -1,14 +1,16 @@
 """
-Aggregator routes — trend-driven discovery that links out to real retailers.
+Secondary surface — kept for reference, not part of the core recommender product.
 
-  GET /catalog/trends              Pinterest rising fashion searches (India)
-  GET /catalog/shop?trend=...      products for a trend keyword (curated + live)
-  GET /catalog/outfit?trend=...    a full assembled look for a trend
-  GET /catalog/products?...        filtered aggregator search
-  GET /catalog/product/{id}        one product (any source)
+  GET /catalog/metrics            REAL model metrics for the Dashboard (used)
+  GET /catalog/trends             Pinterest rising fashion searches (experimental)
+  GET /catalog/shop?trend=...     products for a trend keyword (experimental)
+  GET /catalog/outfit?trend=...   an assembled look for a trend (experimental)
+  GET /catalog/products?...       aggregator search (experimental)
+  GET /catalog/product/{id}       one aggregator product (experimental)
 
-Products always carry a `buy_url` that opens the item on the retailer's own
-site; `price_is_estimate=true` items are category estimates, not live prices.
+The trend-shopping aggregator was an earlier direction. The project's product is
+the personalised H&M recommender (see /recommend, /explain, /trends). Only
+/catalog/metrics is wired into the UI. The rest stay so the code still runs.
 """
 from typing import Optional
 

@@ -1,0 +1,76 @@
+{
+  "training_window": {
+    "train": "2020-05-01 .. 2020-09-08",
+    "holdout": "2020-09-08 .. 2020-09-22",
+    "months": 4.3
+  },
+  "window_transactions": 6513285,
+  "trend_forecast": {
+    "mae": 166.2,
+    "mape_pct": 8.9,
+    "weeks": 106,
+    "target": "weekly sales per product type"
+  },
+  "generated": "2026-08-31",
+  "interaction_matrix": {
+    "users": 374335,
+    "items": 35329,
+    "nnz": 4524937,
+    "density_pct": 0.0342
+  },
+  "ground_truth_users": 128333,
+  "reranker": {
+    "train_users": 6000,
+    "test_users": 1000,
+    "candidates": 100,
+    "valid_ndcg10": 0.8815,
+    "valid_note": "in-fold validation NDCG@10 on the train split; not comparable to held-out retrieval metrics"
+  },
+  "candidate_recall": {
+    "at": 100,
+    "value": 0.0359,
+    "note": "fraction of held-out ground-truth items ALS puts in the candidate pool \u2014 the ceiling the re-ranker cannot exceed"
+  },
+  "shap_global_importance": [
+    {
+      "feature": "Trending this week",
+      "value": 0.042
+    },
+    {
+      "feature": "Product type",
+      "value": 0.0233
+    },
+    {
+      "feature": "Colour group",
+      "value": 0.0165
+    },
+    {
+      "feature": "High CF rank",
+      "value": 0.0123
+    },
+    {
+      "feature": "Garment type",
+      "value": 0.0099
+    },
+    {
+      "feature": "Matches price range",
+      "value": 0.0075
+    },
+    {
+      "feature": "Popular item",
+      "value": 0.0044
+    },
+    {
+      "feature": "Visual style match",
+      "value": 0.004
+    }
+  ],
+  "pipeline": [
+    "Chunked pandas ETL",
+    "ALS collaborative filtering",
+    "LightGBM LambdaRank re-rank",
+    "SHAP explanations",
+    "Weekly demand forecast",
+    "TF-IDF / RAG search"
+  ]
+}

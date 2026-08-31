@@ -105,7 +105,7 @@ def run():
     # ── Build re-ranker feature matrix ────────────────────────────
     # FIX: Split eligible users into non-overlapping train and held-out test pools
     # before building any features. The test pool is NEVER touched during training.
-    N_TRAIN, N_TEST, N_CANDS = 3000, 500, 50  # 3k train users for meaningful LambdaRank signal
+    N_TRAIN, N_TEST, N_CANDS = 6000, 1000, 100  # denser 8-month matrix -> bigger pools, deeper candidates
     print(f"\n[2/8] Building feature matrix "
           f"({N_TRAIN} train users + {N_TEST} held-out test users × {N_CANDS} candidates)...")
     eligible = [c for c in list(ground_truth.keys()) if c in cid2u]
@@ -212,11 +212,16 @@ def run():
 
     # Score test users with the trained reranker (no leakage)
     r10,n10,m12=[],[],[]
+    cand_recall=[]   # ceiling: fraction of ground-truth ALS even puts in the candidate pool
     for cid in test_cids:
         uidx=int(cid2u[cid]) if cid in cid2u else None
         if uidx is None: continue
         try: ids,als_scores=als.recommend(uidx,matrix[uidx],N=N_CANDS,filter_already_liked_items=True)
         except: continue
+        _act=ground_truth.get(cid,[])
+        if _act:
+            _cand={i2aid[int(i)] for i in ids}
+            cand_recall.append(len(_cand & set(_act))/min(len(_act),N_CANDS))
         up=u_price.get(cid,0.025); ut=u_top_ptype.get(cid,'')
         ue_val=float(cust.loc[cid,'engagement_score']) if cid in cust.index else 0.5
         ua=float(cust.loc[cid,'age_norm']) if cid in cust.index else 0.3
@@ -249,6 +254,9 @@ def run():
         if act: hit_pipe[cid]=1 if set(rec[:12])&set(act) else 0
     results['Full pipeline (Phase 5)']={'recall@10':np.mean(r10) if r10 else 0,
         'ndcg@10':np.mean(n10) if n10 else 0,'map@12':np.mean(m12) if m12 else 0}
+
+    CAND_RECALL = float(np.mean(cand_recall)) if cand_recall else 0.0
+    print(f"  Candidate recall@{N_CANDS} (ALS retrieval ceiling): {CAND_RECALL:.4f}")
 
     pd.DataFrame([{'model':k,**v} for k,v in results.items()])\
       .to_csv('data/features/final_metrics.csv', index=False)
@@ -361,6 +369,36 @@ def run():
             final.append({'customer_id':cid,'article_id':aid,'rank':rank})
     pd.DataFrame(final).to_parquet('data/features/final_recommendations.parquet', index=False)
     print(f"  {len(final):,} recommendations saved ✓")
+
+    # ── Model card (real numbers the Dashboard reads) ────────────
+    print("\n[8/8] Writing model card...")
+    import json as _json
+    mc_path = 'data/features/model_card.json'
+    mc = {}
+    try:
+        mc = _json.load(open(mc_path))
+    except Exception:
+        pass
+    mc.update({
+        "generated": pd.Timestamp.now().strftime("%Y-%m-%d"),
+        "interaction_matrix": {"users": int(matrix.shape[0]), "items": int(matrix.shape[1]),
+                                "nnz": int(matrix.nnz),
+                                "density_pct": round(matrix.nnz / (matrix.shape[0]*matrix.shape[1]) * 100, 4)},
+        "ground_truth_users": int(len(ground_truth)),
+        "reranker": {"train_users": N_TRAIN, "test_users": N_TEST, "candidates": N_CANDS,
+                     "valid_ndcg10": round(float(ndcg10), 4),
+                     "valid_note": "in-fold validation NDCG@10 on the train split; not comparable to held-out retrieval metrics"},
+        "candidate_recall": {"at": N_CANDS, "value": round(CAND_RECALL, 4),
+                             "note": "fraction of held-out ground-truth items ALS puts in the candidate pool — the ceiling the re-ranker cannot exceed"},
+        "shap_global_importance": [
+            {"feature": FEAT_LABELS[f], "value": round(float(v), 4)} for f, v in fi.head(8).items()
+        ],
+        "pipeline": ["Chunked pandas ETL", "ALS collaborative filtering",
+                     "LightGBM LambdaRank re-rank", "SHAP explanations",
+                     "Weekly demand forecast", "TF-IDF / RAG search"],
+    })
+    _json.dump(mc, open(mc_path, 'w'), indent=2)
+    print(f"  {mc_path} ✓")
 
     print("\nPhase 5 complete ✓")
 
