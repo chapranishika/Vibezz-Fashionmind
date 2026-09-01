@@ -7,7 +7,7 @@ RAG    : TF-IDF + SVD retrieval (37 fashion knowledge chunks)
 Stream : SSE word-by-word via stream_chat() generator
 API    : imported by api/main.py
 """
-import os, json, pickle, warnings
+import os, json, pickle, re, warnings
 import numpy as np
 import pandas as pd
 import faiss, scipy.sparse as sp
@@ -58,7 +58,15 @@ def _load():
     _glob          = (pd.read_parquet(_glob_path) if os.path.exists(_glob_path)
                       else _M['pop_seg'].drop_duplicates('article_id').head(500))
     _M['pop_s']    = _glob.set_index('article_id')['score'].to_dict()
-    _M['pop12']    = _glob.head(12)['article_id'].tolist()
+    # Cold-start feed should read like a fashion edit — raw popularity is dominated
+    # by socks / underwear / swimwear / basics, so drop those product types here.
+    _HIDE_PT = {'socks','underwear','underwear bottom','bra','bikini top','bikini bottom',
+                'swimwear bottom','swimwear top','swimwear set','night wear','nightwear',
+                'pyjama set','pyjama bottom','pyjama top','pyjama jumpsuit/playsuit',
+                'leggings/tights','tights','slippers','dungarees','sleep bag'}
+    _pt_lu = {str(k): str(v).lower() for k, v in _M['art_lu']['product_type_name'].to_dict().items()}
+    _clean = [a for a in _glob['article_id'].tolist() if _pt_lu.get(str(a), '') not in _HIDE_PT]
+    _M['pop12']    = (_clean or _glob['article_id'].tolist())[:40]
     _M['trend']    = pd.read_parquet('data/features/trend_scores.parquet')
     lw = _M['trend']['week'].max()
     _M['lt_map']   = _M['trend'][_M['trend'].week==lw].set_index('product_type_name')['trend_score'].to_dict()
@@ -119,6 +127,9 @@ def _expand_meta(aid: str) -> dict:
         ggrp = 'Essentials'
         desc = ''
     ip = _M['a_price'].get(aids, 0.025)
+    inr = int(round(ip * 41500)) if ip < 50 else int(round(ip))   # same scale as the UI
+    from urllib.parse import quote_plus
+    shop_q = quote_plus(f"{prod_name} {colour} {ptype}".strip())
     return {
         'article_id': aids,
         'product_name': prod_name,
@@ -128,14 +139,94 @@ def _expand_meta(aid: str) -> dict:
         'garment_group_name': ggrp,
         'detail_desc': desc,
         'avg_price': float(ip),
-        'price': float(ip)
+        'price': float(ip),
+        'price_inr': inr,
+        'currency': 'INR',
+        'shop_url': f"https://www.google.com/search?tbm=shop&q={shop_q}",
     }
 
 
+_CAT_ALIASES = {
+    "dress": "dress", "dresses": "dress", "gown": "dress", "frock": "dress", "maxi": "dress",
+    "jean": "trouser", "jeans": "trouser", "denim": "trouser", "trouser": "trouser",
+    "trousers": "trouser", "pant": "trouser", "pants": "trouser", "slacks": "trouser",
+    "jogger": "trouser", "joggers": "trouser", "chino": "trouser", "chinos": "trouser",
+    "top": "top", "tee": "t-shirt", "tees": "t-shirt", "tshirt": "t-shirt", "t-shirt": "t-shirt",
+    "shirt": "shirt", "blouse": "blouse", "tank": "vest top", "cami": "vest top", "camisole": "vest top",
+    "skirt": "skirt", "skirts": "skirt", "shorts": "short", "short": "short",
+    "jacket": "jacket", "jackets": "jacket", "blazer": "blazer", "coat": "coat", "coats": "coat",
+    "cardigan": "cardigan", "sweater": "sweater", "sweaters": "sweater", "jumper": "sweater",
+    "knit": "sweater", "knitwear": "sweater", "hoodie": "hoodie", "sweatshirt": "sweater",
+    "jumpsuit": "jumpsuit", "playsuit": "jumpsuit", "co-ord": "garment set", "coord": "garment set",
+    "shoe": "shoe", "shoes": "shoe", "sneaker": "sneaker", "sneakers": "sneaker",
+    "heel": "heel", "heels": "heel", "boot": "boot", "boots": "boot", "sandal": "sandal",
+    "sandals": "sandal", "flat": "ballerina", "flats": "ballerina", "loafer": "loafer",
+    "bag": "bag", "bags": "bag", "handbag": "bag", "tote": "bag", "scarf": "scarf",
+    "sunglasses": "sunglass", "jewellery": "necklace", "jewelry": "necklace",
+}
+_OCCASION_WORDS = {"work", "casual", "party", "everyday", "office", "brunch", "formal",
+                   "date", "weekend", "beach", "gym", "wedding", "festive", "smart", "lounge"}
+
+
+def _popular_in_category(cat: str, n: int = 12, max_price: float = None) -> list:
+    """Most-popular catalogue items of a garment category (for guests / category asks)."""
+    art = _M.get('art')
+    if art is None or not cat:
+        return []
+    toks = [w for w in re.split(r"[^a-z]+", cat.lower()) if len(w) > 2]
+    keys = {_CAT_ALIASES.get(w, w) for w in toks} or {cat.lower()}
+    ptn = art['product_type_name'].astype(str).str.lower()
+    grp = (art['product_group_name'].astype(str).str.lower()
+           if 'product_group_name' in art.columns else ptn)
+    mask = None
+    for k in keys:
+        m = ptn.str.contains(k, na=False, regex=False) | grp.str.contains(k, na=False, regex=False)
+        mask = m if mask is None else (mask | m)
+    if mask is None:
+        return []
+    sub = art[mask]
+    if sub.empty:
+        return []
+    pop_s = _M.get('pop_s', {})
+    aids = sub['article_id'].astype(str)
+    sub = sub.assign(_pop=[pop_s.get(a.lstrip('0'), pop_s.get(a, 0.0)) for a in aids])
+    sub = sub.sort_values('_pop', ascending=False)
+    out, per_name = [], {}
+    for a in sub['article_id'].astype(str).head(max(n * 8, 120)):
+        m = _expand_meta(a)
+        if max_price and m['avg_price'] > max_price:
+            continue
+        nm = re.sub(r"\s*\(\d+\)\s*$", "", str(m['product_name'])).strip().lower()
+        if per_name.get(nm, 0) >= 1:          # at most one colourway per style
+            continue
+        per_name[nm] = per_name.get(nm, 0) + 1
+        m['score'] = 0.0
+        m['reasons'] = [f"Popular in {cat.strip().lower()}"]
+        out.append(m)
+        if len(out) >= n:
+            break
+    return out
+
+
 def get_recommendations(customer_id: str, occasion: str = None,
-                        max_price: float = None, n: int = 12) -> dict:
+                        max_price: float = None, n: int = 12,
+                        category: str = None) -> dict:
     _load()
     cid = str(customer_id)
+
+    # A garment-type request ("dresses", "black jackets") is served from the
+    # catalogue directly — the popularity list alone can't answer it.
+    cat = (category or "").strip()
+    if not cat and occasion and occasion.strip().lower() not in _OCCASION_WORDS:
+        cat = occasion.strip()
+    if cat:
+        picked = _popular_in_category(cat, n, max_price)
+        if picked:
+            return {"customer_id": cid, "category": cat,
+                    "is_cold_start": cid not in _M['cid2u'],
+                    "recommendations": picked,
+                    "explanation": f"Popular {cat.lower()} picks."}
+
     if cid not in _M['cid2u']:
         # FIX: use segmented cold-start (age-bucket × club) instead of global popularity
         pop_seg = _M.get('pop_seg')
@@ -311,58 +402,132 @@ def shop_the_trend(keyword: str, budget_max: float = None, n: int = 8) -> dict:
             "note": "buy_url opens the item (or a search for it) on the retailer's own site."}
 
 
+_JUNK_TITLE = re.compile(
+    r"\b(pack of|combo|set of \d|multipack|\d ?pcs|nightwear|inner ?wear|camisole|"
+    r"slip for|thermal|shapewear|for men.*women|for women.*men|kids?|boys?|girls?|"
+    r"toddler|infant)\b", re.I)
+
+
+def _clean_title(t: str) -> bool:
+    return bool(t) and len(t) < 90 and not _JUNK_TITLE.search(t)
+
+
+# keyword gates so a slot only accepts a title that reads like that garment
+_SLOT_KW = {
+    "top":       (r"top|tee|t-?shirt|shirt|blouse|tank|cami|bodysuit|corset|"
+                  r"blazer|jacket|cardigan|sweater|knit|kurta|kurti", r"jean|trouser|pant|skirt|short|dress|shoe|sneaker|bag|heel|sandal"),
+    "bottom":    (r"jean|trouser|pant|denim|skirt|short|legging|culotte|palazzo|cargo|chino", r"top|tee|t-?shirt|blouse|dress|shoe|sneaker|bag|jacket|blazer"),
+    "layer":     (r"blazer|jacket|coat|shrug|overshirt|waistcoat|bomber|trench", r"jean|trouser|pant|dress|shoe|bag|skirt"),
+    "one-piece": (r"dress|gown|jumpsuit|playsuit|co-?ord|two[- ]?piece|kurta set|"
+                  r"saree|lehenga|anarkali|sharara|set", r"shoe|sneaker|bag|heel"),
+    "shoes":     (r"shoe|sneaker|trainer|heel|boot|sandal|flat|loafer|mule|slipper|jutti|pump", r""),
+    "accessory": (r"bag|tote|clutch|purse|backpack|sling|hobo|scarf|stole|belt|"
+                  r"earring|necklace|choker|sunglass|shades|hat|cap", r""),
+}
+
+
+def _cat_ok(slot: str, title: str) -> bool:
+    t = (title or "").lower()
+    inc, exc = _SLOT_KW.get(slot, (r".", r"(?!x)x"))
+    return bool(re.search(inc, t)) and not (exc and re.search(exc, t))
+
+
 def build_trend_outfit(keyword: str, budget_max: float = None) -> dict:
-    """Assemble a full look for a trend: one top/dress, one bottom (if needed),
-    shoes, and an accessory, drawn from the aggregator catalogue."""
+    """Assemble a coherent full look for a trend — one top (or dress), a bottom,
+    shoes and an accessory — with a focused search per slot so the pieces make
+    sense together. Curated items win ties (clean names + correct categories)."""
     from src.trends.trend_map import map_trend
     from src.catalog import aggregate_search
     m = map_trend(keyword)
-    pool = aggregate_search(query=keyword, product_types=m["product_types"] or None,
-                            tags=m["tags"] or None, limit=40)
-    if budget_max:
-        pool = [p for p in pool if (p.get("price_min") or 0) <= budget_max
-                or p.get("price_min") is None]
+    kl = keyword.lower()
+    gender = "men" if any(w in kl for w in
+        ("men", "sherwani", "bandhgala", "nehru jacket", "dhoti", "kurta pyjama")) else "women"
 
     TOP   = {"Top","Blouse","Shirt","T-shirt","Sweater","Vest top","Bodysuit","Cardigan","Polo shirt"}
     LAYER = {"Blazer","Jacket","Coat"}
     DRESS = {"Dress","Jumpsuit/Playsuit","Garment Set"}
     BOTTOM= {"Trousers","Skirt","Shorts","Leggings/Tights"}
-    SHOE  = {"Ballerinas","Sneakers","Boots","Sandals","Other shoe","Slippers"}
-    ACC   = {"Bag","Scarf","Belt","Sunglasses","Earring","Necklace","Hat/beanie","Hat/brim","Cap/peaked","Other accessories"}
+    SHOE  = {"Ballerinas","Sneakers","Boots","Sandals","Other shoe","Slippers","Flats"}
+    ACC   = {"Bag","Scarf","Belt","Sunglasses","Earring","Necklace","Hat/beanie","Other accessories"}
 
-    used_ids = set()
-    style_pool = aggregate_search(tags=(m["tags"] or None), limit=40) if m["tags"] else []
+    trend_toks = [w for w in re.split(r"[^a-z]+", kl) if len(w) > 2]
+    _WRONG_GENDER = (re.compile(r"\b(men'?s?|boys?)\b", re.I) if gender == "women"
+                     else re.compile(r"\b(women'?s?|girls?|ladies)\b", re.I))
 
-    def pick(kinds, *extra):
-        for src in (pool, style_pool, *extra):
-            for p in src:
-                if p.get("product_type") in kinds and p.get("id") not in used_ids:
-                    used_ids.add(p.get("id"))
-                    return p
+    def _gender_ok(t):
+        t = t or ""
+        return not (_WRONG_GENDER.search(t) and not re.search(
+            r"\bwomen\b" if gender == "women" else r"\bmen\b", t, re.I))
+
+    used: set = set()
+
+    def take(slot, query, kinds, strict=True, want_trend=False):
+        rows = aggregate_search(query=query, product_types=list(kinds), tags=m["tags"] or None, limit=24)
+        rows = [r for r in rows if (r.get("gender") or "women") in (gender, "unisex")
+                and _gender_ok(r.get("title", ""))]
+        if budget_max:
+            rows = [r for r in rows
+                    if (r.get("price_min") or 0) <= budget_max or r.get("price_min") is None]
+
+        def _trend_hit(r):
+            t = (r.get("title", "") or "").lower()
+            return r.get("source") == "curated" or any(w in t for w in trend_toks)
+
+        rows.sort(key=lambda r: (not r.get("image"),
+                                 want_trend and not _trend_hit(r),
+                                 not _cat_ok(slot, r.get("title", "")),
+                                 not _clean_title(r.get("title", "")),
+                                 r.get("source") != "curated"))
+        passes = []
+        if want_trend:
+            passes.append(lambda r: r.get("image") and _clean_title(r.get("title", ""))
+                          and _cat_ok(slot, r.get("title", "")) and _trend_hit(r))
+        passes.append(lambda r: r.get("image") and _clean_title(r.get("title", ""))
+                      and _cat_ok(slot, r.get("title", "")))
+        passes.append(lambda r: _clean_title(r.get("title", "")) and _cat_ok(slot, r.get("title", "")))
+        for ok in passes:
+            for r in rows:
+                if r.get("id") not in used and ok(r):
+                    used.add(r.get("id")); return r
+        if strict:
+            return None
+        for r in rows:
+            if r.get("id") not in used and _clean_title(r.get("title", "")):
+                used.add(r.get("id")); return r
         return None
 
-    def pick_neutral(kinds):
-        # last resort: any style-appropriate item of this kind so the look is complete
-        return pick(kinds, aggregate_search(product_types=list(kinds), limit=12))
+    mapped = set(m["product_types"] or [])
+    dress_led = bool({"Dress", "Garment Set", "Jumpsuit/Playsuit"} & mapped)
+    outer_led = bool(LAYER & mapped)
+    bottom_led = bool(BOTTOM & mapped)
+    top_led = bool(TOP & mapped)
 
     look = []
-    dress = pick(DRESS)
-    if dress:
-        look.append({"slot": "one-piece", **dress})
-        layer = pick(LAYER)
-        if layer:
-            look.append({"slot": "layer", **layer})
+    if dress_led:
+        d = take("one-piece", keyword, DRESS, want_trend=True) \
+            or take("one-piece", f"{gender} {keyword}", DRESS, strict=False)
+        if d: look.append({"slot": "one-piece", **d})
     else:
-        top = pick(TOP) or pick(LAYER) or pick_neutral(TOP)
-        if top:
-            look.append({"slot": "top", **top})
-        bottom = pick(BOTTOM) or pick_neutral(BOTTOM)
-        if bottom:
-            look.append({"slot": "bottom", **bottom})
-    for slot, kinds in (("shoes", SHOE), ("accessory", ACC)):
-        it = pick(kinds) or pick_neutral(kinds)
-        if it:
-            look.append({"slot": slot, **it})
+        if outer_led:
+            l = take("layer", keyword, LAYER, want_trend=True) \
+                or take("layer", f"{gender} blazer", LAYER, strict=False)
+            if l: look.append({"slot": "layer", **l})
+        t = (take("top", keyword, TOP, want_trend=True) if top_led
+             else take("top", f"{gender} plain top", TOP, strict=False)) \
+            or take("top", f"{gender} basic top", TOP, strict=False)
+        if t: look.append({"slot": "top", **t})
+        b = (take("bottom", keyword, BOTTOM, want_trend=True) if bottom_led
+             else take("bottom", f"{gender} wide leg trousers", BOTTOM)) \
+            or take("bottom", f"{gender} trousers", BOTTOM, strict=False)
+        if b: look.append({"slot": "bottom", **b})
+
+    s = (take("shoes", f"{keyword} shoes", SHOE)
+         or take("shoes", f"{gender} ballet flats", SHOE)
+         or take("shoes", f"{gender} white sneakers", SHOE, strict=False))
+    if s: look.append({"slot": "shoes", **s})
+    a = (take("accessory", f"{gender} shoulder bag", ACC)
+         or take("accessory", f"{gender} tote bag", ACC, strict=False))
+    if a: look.append({"slot": "accessory", **a})
 
     total_lo = total_hi = 0
     for it in look:
@@ -416,9 +581,10 @@ TOOL_DECLARATIONS = [
      "description":"Get personalised fashion recommendations for a customer based on purchase history, style, and trends.",
      "parameters":{"type":"object","properties":{
          "customer_id":{"type":"string"},
+         "category":   {"type":"string","description":"Garment type the user asked for, e.g. 'dress', 'jacket', 'jeans', 'skirt', 'sneakers'. Set this whenever the request names a kind of item."},
          "occasion":   {"type":"string","description":"casual|work|party|beach|gym"},
-         "max_price":  {"type":"number","description":"Max price in GBP"},
-         "n":          {"type":"integer","description":"Number of items (default 6)"}
+         "max_price":  {"type":"number","description":"Max price in INR (₹)"},
+         "n":          {"type":"integer","description":"Number of items (default 12)"}
      },"required":["customer_id"]}},
     {"name":"get_trend_report",
      "description":"Get currently trending fashion categories based on demand forecasting.",
@@ -446,19 +612,22 @@ TOOL_MAP = {
     "explain_recommendation":explain_recommendation,
 }
 
-SYSTEM_PROMPT = """You are the Vibezz Stylist, the assistant for a personalised H&M fashion recommender (ALS candidate retrieval + a LightGBM LambdaRank re-ranker over 13 signals, with SHAP explanations).
+SYSTEM_PROMPT = """You are the Vibezz Stylist — a warm, direct personal shopping assistant.
 
 Tools:
-- get_recommendations: personalised picks for a customer, each with SHAP reasons
-- explain_recommendation: the SHAP reasons a specific item was recommended
-- get_trend_report: which product types are trending (LightGBM demand forecast)
-- get_outfit_suggestion: compatible upper/lower pairings from the catalogue
+- get_recommendations: personalised picks (each item: product_name, colour, type, price_inr, a short reason, shop_url)
+- explain_recommendation: why a specific item was picked
+- get_trend_report: which categories are trending right now
+- get_outfit_suggestion: matching top / bottom pairings
 
-Guidelines:
-- Ground every answer in tool output — real article IDs, product types, colours, prices, and the SHAP reasons (a leading ↑ means the feature pushed the score up).
-- If asked "why was this recommended", call explain_recommendation.
-- For occasion requests ("work", "brunch"), call get_recommendations and pick items whose type/colour fit, explaining the match.
-- Be warm and concise; format item lists clearly. Do not invent items or prices.
+Rules:
+- Ground every answer in tool output. Never invent items, prices or links.
+- When the user names a kind of item ("dresses", "a black jacket", "jeans"), call get_recommendations with `category` set to that garment word. Only skip it for vague asks ("something for work").
+- Recommend only items whose type actually matches what they asked. If a result set has none, say so plainly and offer the closest thing — don't pass off trousers as a dress.
+- ALL prices are Indian Rupees. Write "₹1,371" using the item's price_inr field. NEVER use £, $, or the raw decimal price.
+- Make each item name a markdown link to its shop_url, e.g. [Jade Skinny Jeans](https://...).
+- The app renders product cards under your message, so be brief: one line of intro, then a tight bullet list — [name](shop_url) · colour · ₹price · one short clause on why it fits. No paragraph-long descriptions.
+- No technical jargon. Friendly and to the point.
 """
 
 
@@ -526,18 +695,62 @@ def chat(message: str, customer_id: str, history: list, api_key: str = ""):
     return "I can help you find the perfect outfit! What occasion are you dressing for?", history
 
 
+def _to_inr(v):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(round(v * 41500)) if v < 50 else int(round(v))
+
+
+def _products_from_tools(events):
+    """Pull shoppable items out of tool results so the chat UI can show cards."""
+    out, seen = [], set()
+    for name, res in events:
+        try:
+            d = json.loads(res)
+        except Exception:
+            continue
+        rows = (d.get("recommendations") or d.get("products")
+                or d.get("look") or d.get("outfit") or [])
+        if not isinstance(rows, list):
+            continue
+        for r in rows[:8]:
+            if not isinstance(r, dict):
+                continue
+            aid = str(r.get("article_id") or r.get("id") or "")
+            nm = r.get("product_name") or r.get("title") or ""
+            key = (aid or nm).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                "article_id": aid,
+                "product_name": nm,
+                "product_type_name": r.get("product_type_name") or r.get("product_type") or "",
+                "colour_group_name": r.get("colour_group_name") or r.get("colour") or "",
+                "price_inr": r.get("price_inr") or _to_inr(r.get("price_min") or r.get("avg_price")),
+                "shop_url": r.get("shop_url") or r.get("buy_url") or "",
+                "reason": (r.get("reasons") or [None])[0] if r.get("reasons") else "",
+            })
+    return out[:8]
+
+
 def stream_chat(message: str, customer_id: str, history: list, api_key: str = ""):
     """SSE generator for FastAPI StreamingResponse."""
     full_msg = _augment(message)
 
     if os.getenv("OPENROUTER_API_KEY"):
         from src.genai.llm import run_chat
-        seen_tools = []
+        events = []                       # (tool_name, result_json_str)
         text, _ = run_chat(SYSTEM_PROMPT, history, full_msg,
                            TOOL_DECLARATIONS, run_tool,
-                           on_tool=lambda n: seen_tools.append(n))
-        for t in seen_tools:
+                           on_tool=lambda n, res="": events.append((n, res)))
+        for t, _res in events:
             yield f"data: {json.dumps({'tool_call': t, 'done': False})}\n\n"
+        prods = _products_from_tools(events)
+        if prods:
+            yield f"data: {json.dumps({'products': prods, 'done': False})}\n\n"
         words = text.split(' ')
         for i, w in enumerate(words):
             yield f"data: {json.dumps({'token': w + (' ' if i < len(words)-1 else ''), 'done': False})}\n\n"

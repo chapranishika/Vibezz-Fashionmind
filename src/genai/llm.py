@@ -89,9 +89,12 @@ def run_chat(system: str, history: list[dict], user_msg: str,
                 args = json.loads(fn.get("arguments") or "{}")
             except Exception:
                 args = {}
-            if on_tool:
-                on_tool(name)
             result = tool_runner(name, args)
+            if on_tool:
+                try:
+                    on_tool(name, result)      # newer callers want the result too
+                except TypeError:
+                    on_tool(name)              # back-compat: name only
             messages.append({"role": "tool", "tool_call_id": tc.get("id", ""),
                              "name": name, "content": result})
 

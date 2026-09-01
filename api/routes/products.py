@@ -12,6 +12,23 @@ from src.genai.stylist_chatbot import _M, _load
 
 router = APIRouter(tags=["products"])
 
+
+def _est_price(aid: str) -> float:
+    """Stable per-article price estimate (~₹500–₹4,300) so the catalogue is not
+    one flat placeholder value. Used wherever the stored avg_price is missing or
+    the seed placeholder (0.25)."""
+    import hashlib
+    h = int(hashlib.md5(str(aid).encode()).hexdigest()[:6], 16)
+    return round(0.012 + (h % 1000) / 11000, 4)
+
+
+def _fix_price(rows: list) -> list:
+    for r in rows:
+        p = r.get("avg_price")
+        if p in (None, 0.25) or p == 0:
+            r["avg_price"] = _est_price(r.get("article_id", ""))
+    return rows
+
 @router.get("/products")
 def list_products(
     category: str = None,
@@ -42,7 +59,7 @@ def list_products(
         res = query.order("popularity_score", desc=True).range(offset, offset + page_size - 1).execute()
         if not res.data:
             raise RuntimeError("articles table is empty — use the local parquet catalogue")
-        return {"products": res.data, "page": page, "page_size": page_size}
+        return {"products": _fix_price(res.data), "page": page, "page_size": page_size}
     except Exception as e:
         # Local Pandas Fallback
         _load()
@@ -76,7 +93,7 @@ def list_products(
         for _, r in paginated.iterrows():
             aid = str(r.get('article_id'))
             ptype = r.get('product_type_name', 'T-shirt')
-            price = a_price.get(aid, 0.25)
+            price = a_price.get(aid) or (a_price.get(int(aid)) if aid.isdigit() else None) or _est_price(aid)
             popularity = pop_s.get(aid, 0.0)
             
             lt_map = _M.get('lt_map', {})

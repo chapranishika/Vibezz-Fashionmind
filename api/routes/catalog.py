@@ -26,12 +26,18 @@ router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 @router.get("/trends")
 def catalog_trends(category: Optional[str] = None, region: str = "IN"):
-    return get_pinterest_trends(category=category, region=region)
+    out = get_pinterest_trends(category=category, region=region)
+    try:
+        from src.trends.festivals import current_festive
+        out["festive"] = current_festive()      # None when nothing is near
+    except Exception:
+        out["festive"] = None
+    return out
 
 
 @router.get("/shop")
 def catalog_shop(trend: str = Query(..., description="trend keyword, e.g. 'barrel jeans'"),
-                 budget_max: Optional[float] = None, n: int = 12):
+                 budget_max: Optional[float] = None, n: int = 60):
     return shop_the_trend(trend, budget_max=budget_max, n=n)
 
 
@@ -39,6 +45,23 @@ def catalog_shop(trend: str = Query(..., description="trend keyword, e.g. 'barre
 def catalog_outfit(trend: str = Query(..., description="trend keyword"),
                    budget_max: Optional[float] = None):
     return build_trend_outfit(trend, budget_max=budget_max)
+
+
+@router.get("/photos")
+def catalog_photos(q: str = Query(..., description="plain query, e.g. 'black trousers women'"),
+                   n: int = 10):
+    """Real product photos for a plain query — used to illustrate catalogue items
+    (H&M SKUs) that have no image of their own. Backed by SerpApi's 24h disk
+    cache, so a given (type, colour) query costs one lookup per day at most."""
+    try:
+        from src.catalog.sources import SerpApiShoppingSource
+        rows = SerpApiShoppingSource(gl="in").search(query=q, limit=max(1, min(n, 20)))
+    except Exception:
+        rows = []
+    return {"photos": [{"image": r["image"], "title": r.get("title", ""),
+                        "buy_url": r.get("buy_url", ""),
+                        "price_min": r.get("price_min"), "retailer": r.get("retailer", "")}
+                       for r in rows if r.get("image")]}
 
 
 @router.get("/products")

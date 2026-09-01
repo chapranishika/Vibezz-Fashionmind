@@ -11,7 +11,10 @@ Run:  python scripts/build_trend_catalog.py
 import hashlib
 import json
 import pathlib
+import sys
 import urllib.parse
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 RETAILERS = {
     "Myntra":        "https://www.myntra.com/{slug}",
@@ -22,6 +25,15 @@ RETAILERS = {
     "Urbanic":       "https://in.urbanic.com/search?keyword={q}",
     "Snitch":        "https://www.snitch.co.in/search?q={q}",
     "FabIndia":      "https://www.fabindia.com/search?q={q}",
+    "Savana":        "https://savana.in/search?q={q}",
+    "Newme":         "https://newme.asia/search?q={q}",
+    "Bonkers Corner":"https://bonkerscorner.com/search?q={q}",
+    "Lifestyle":     "https://www.lifestylestores.com/in/en/search/?q={q}",
+    "JAM":           "https://www.google.com/search?tbm=shop&q={q}%20JAM%20clothing",
+    "Bershka":       "https://www.bershka.com/in/search?q={q}",
+    "Littlebox":     "https://littleboxindia.com/search?q={q}",
+    "Lulu & Sky":    "https://www.luluandsky.com/catalogsearch/result/?q={q}",
+    "Virgio":        "https://www.virgio.com/search?q={q}",
 }
 
 
@@ -83,22 +95,132 @@ ROWS = [
     ("Sheer-panel maxi dress", "Urbanic", "Urbanic", "sheer maxi dress", "Dress", "Black", 2190, 3490, "women", "going-out", ["sheer", "maxi", "going-out"]),
     ("Cropped cardigan", "H&M", "H&M India", "cropped cardigan", "Cardigan", "Light Pink", 1299, 1999, "women", "balletcore", ["balletcore", "cardigan", "romantic", "knit"]),
     ("Wide-brim raffia hat", "FabIndia", "FabIndia", "raffia hat", "Hat/brim", "Beige", 1299, 2199, "women", "boho-summer", ["boho", "summer", "hat", "accessory"]),
+
+    # ── Festive / ethnic edit ───────────────────────────────────────────────
+    ("Organza embroidered saree", "Nykaa Fashion", "Nykaa Fashion", "organza embroidered saree", "Dress", "Light Pink", 3999, 8999, "women", "festive", ["festive", "saree", "organza", "ethnic", "occasion"]),
+    ("Bandhani cotton kurta set", "FabIndia", "FabIndia", "bandhani kurta set", "Garment Set", "Dark Red", 2799, 4999, "women", "festive", ["festive", "kurta", "bandhani", "ethnic", "co-ord"]),
+    ("Sequin lehenga choli", "Savana", "Savana", "sequin lehenga", "Dress", "Dark Green", 4999, 11999, "women", "festive", ["festive", "lehenga", "sequin", "ethnic", "wedding"]),
+    ("Anarkali floor-length kurta", "Ajio", "Ajio", "anarkali kurta", "Dress", "Dark Blue", 2499, 5999, "women", "festive", ["festive", "anarkali", "kurta", "ethnic"]),
+    ("Chikankari straight kurta", "Lifestyle", "Lifestyle", "chikankari kurta", "Blouse", "Off White", 1799, 3499, "women", "festive", ["festive", "chikankari", "kurta", "ethnic"]),
+    ("Indo-western drape dress", "Newme", "Newme", "indo western drape dress", "Dress", "Gold", 2299, 4299, "women", "festive", ["festive", "indo-western", "occasion", "party"]),
+    ("Silk-blend sherwani", "Myntra", "Myntra", "sherwani men", "Blazer", "Dark Beige", 5999, 14999, "men", "festive", ["festive", "sherwani", "ethnic", "wedding", "men"]),
+    ("Bandhgala bandi jacket", "Bonkers Corner", "Bonkers Corner", "bandhgala jacket", "Blazer", "Dark Blue", 2299, 4999, "men", "festive", ["festive", "bandhgala", "ethnic", "men"]),
+    ("Nehru jacket + kurta pyjama set", "Lifestyle", "Lifestyle", "nehru jacket kurta set", "Garment Set", "Beige", 2999, 5999, "men", "festive", ["festive", "nehru-jacket", "kurta", "ethnic", "men"]),
+    ("Banarasi silk dupatta", "FabIndia", "FabIndia", "banarasi dupatta", "Scarf", "Dark Red", 1499, 3499, "women", "festive", ["festive", "banarasi", "dupatta", "ethnic", "accessory"]),
+    ("Embroidered potli bag", "Nykaa Fashion", "Nykaa Fashion", "potli bag", "Bag", "Gold", 799, 1999, "women", "festive", ["festive", "potli", "bag", "ethnic", "accessory"]),
+    ("Mirror-work embroidered juttis", "Ajio", "Ajio", "juttis women", "Other shoe", "Dark Red", 999, 2499, "women", "festive", ["festive", "juttis", "ethnic", "shoes"]),
+    ("Kundan choker necklace set", "Nykaa Fashion", "Nykaa Fashion", "kundan choker set", "Necklace", "Gold", 1299, 3999, "women", "festive", ["festive", "kundan", "jewellery", "ethnic", "accessory"]),
+    ("Zari-border cotton saree", "Myntra", "Myntra", "zari border cotton saree", "Dress", "Off White", 1999, 4499, "women", "festive", ["festive", "saree", "cotton", "ethnic"]),
+    ("Velvet embroidered ethnic co-ord", "JAM", "JAM", "velvet ethnic co-ord", "Garment Set", "Dark Purple", 2799, 4999, "women", "festive", ["festive", "velvet", "co-ord", "ethnic", "party"]),
+
+    # ── More fast-fashion retailers (India online) ─────────────────────────
+    ("Baggy carpenter jeans", "Bershka", "Bershka", "baggy jeans women", "Trousers", "Light Blue", 2290, 3290, "women", "weekend-casual", ["denim", "baggy", "wide-leg"]),
+    ("Cropped rib tank top", "Bershka", "Bershka", "rib tank top", "Vest top", "White", 590, 990, "women", "everyday", ["tank", "rib", "basic"]),
+    ("Faux-leather biker jacket", "Bershka", "Bershka", "faux leather jacket", "Jacket", "Black", 3290, 4590, "women", "going-out", ["leather", "jacket", "biker"]),
+    ("Floral puff-sleeve mini dress", "Littlebox", "Littlebox", "floral mini dress", "Dress", "Light Pink", 999, 1799, "women", "brunch", ["floral", "mini", "romantic"]),
+    ("Co-ord blazer + shorts set", "Littlebox", "Littlebox", "blazer shorts co ord set", "Garment Set", "Beige", 1499, 2599, "women", "office-siren", ["co-ord", "tailoring", "matching-set"]),
+    ("Satin corset-detail top", "Lulu & Sky", "Lulu & Sky", "satin corset top", "Top", "Dark Green", 1290, 2190, "women", "going-out", ["corset", "satin", "going-out"]),
+    ("Ruched bodycon midi dress", "Lulu & Sky", "Lulu & Sky", "ruched bodycon dress", "Dress", "Black", 1690, 2890, "women", "party", ["bodycon", "ruched", "party"]),
+    ("Wide-leg pleated trousers", "Virgio", "Virgio", "pleated wide leg trousers", "Trousers", "Off White", 1990, 2990, "women", "office-siren", ["wide-leg", "pleated", "tailoring"]),
+    ("Oversized poplin shirt", "Virgio", "Virgio", "oversized poplin shirt", "Shirt", "Light Blue", 1490, 2290, "women", "minimal", ["poplin", "oversized", "minimal"]),
+    ("Linen-blend slip dress", "Virgio", "Virgio", "linen slip dress", "Dress", "Beige", 1990, 3190, "women", "summer-linen", ["linen", "slip-dress", "minimal"]),
+    ("Waistcoat + trouser co-ord", "Urbanic", "Urbanic", "waistcoat trouser co ord", "Garment Set", "Dark Grey", 2190, 3390, "women", "office-siren", ["waistcoat", "tailoring", "co-ord"]),
+    ("Denim maxi shirt dress", "Zara", "Zara India", "denim maxi shirt dress", "Dress", "Blue", 3590, 4590, "women", "denim-dressed-up", ["denim", "maxi", "shirt-dress"]),
 ]
 
 
+# ── programmatic fan-out: every trend keyword × every retailer × a few cuts ──
+# Gives each trend a deep shelf of shoppable links across all India sites.
+_BANDS = {
+    "Trousers": (1299, 3499), "Skirt": (1199, 2999), "Dress": (1499, 4999),
+    "Top": (699, 1999), "Blouse": (999, 2499), "Shirt": (1199, 2799),
+    "T-shirt": (599, 1699), "Vest top": (499, 1299), "Bodysuit": (799, 1999),
+    "Sweater": (1499, 3499), "Cardigan": (1299, 2999), "Hoodie": (999, 2499),
+    "Jacket": (2499, 5999), "Blazer": (2999, 6999), "Coat": (3999, 8999),
+    "Garment Set": (1999, 4999), "Jumpsuit/Playsuit": (1699, 3999),
+    "Ballerinas": (1299, 2999), "Sneakers": (2499, 6999), "Other shoe": (1499, 3999),
+    "Boots": (2999, 6999), "Bag": (899, 3499), "Scarf": (499, 1999),
+    "Sunglasses": (799, 2499), "Earring": (299, 1499), "Necklace": (699, 2999),
+    "Leggings/Tights": (699, 1699), "Polo shirt": (899, 2199),
+}
+_DEFAULT_BAND = (999, 2999)
+_CUTS = ["", "Relaxed-fit ", "High-rise ", "Cropped ", "Oversized ", "Classic ",
+         "Everyday ", "Premium ", "Structured ", "Soft ", "Tailored ", "Statement ",
+         "Elevated ", "Essential ", "Modern ", "Signature ", "Fluid "]
+_PALETTE = ["Black", "White", "Off White", "Blue", "Dark Blue", "Light Blue",
+            "Beige", "Dark Beige", "Grey", "Dark Grey", "Green", "Dark Green",
+            "Pink", "Light Pink", "Dark Red", "Gold", "Greenish Khaki"]
+_VARIANTS = 2   # cuts per (keyword, retailer)
+
+
+def _keywords():
+    try:
+        from src.trends.pinterest_trends import _SEED
+        kws = [k["keyword"] for k in _SEED["keywords"]]
+    except Exception:
+        kws = []
+    try:
+        from src.trends.festivals import _FESTIVALS
+        for f in _FESTIVALS:
+            kws += list(f[3])
+    except Exception:
+        pass
+    seen, out = set(), []
+    for k in kws:
+        k = k.strip().lower()
+        if k and k not in seen:
+            seen.add(k); out.append(k)
+    return out
+
+
+def _fanout_rows():
+    from src.trends.trend_map import map_trend
+    rows = []
+    for kw in _keywords():
+        m = map_trend(kw)
+        pts = m["product_types"] or ["Top"]
+        tags = m["tags"] or [kw.replace(" ", "-")]
+        colours = m["colours"] or []
+        gender = "men" if any(w in kw for w in (" men", "sherwani", "bandhgala", "bandhi", "nehru jacket", "dhoti")) else "women"
+        look = tags[0] if tags else "trend"
+        base = cap = kw.title()
+        for ri, ret in enumerate(RETAILERS):
+            pt = pts[ri % len(pts)]
+            band = _BANDS.get(pt, _DEFAULT_BAND)
+            for v in range(_VARIANTS):
+                cut = _CUTS[(ri + v * 5) % len(_CUTS)]
+                title = f"{cut}{base}".strip()
+                col = (colours[(ri + v) % len(colours)] if colours
+                       else _PALETTE[(hash((kw, ret, v)) // 7) % len(_PALETTE)])
+                lo = band[0] + ((ri * 137 + v * 311) % max(1, (band[1] - band[0]) // 3))
+                hi = min(band[1], lo + (band[1] - band[0]) // 2 + 200)
+                rows.append((title, ret, ret, kw, pt, col, lo, hi, gender, look,
+                             sorted(set(tags + [kw.replace(" ", "-")]))))
+    return rows
+
+
 def build() -> dict:
-    items = []
-    for (title, brand, ret, q, pt, col, pmin, pmax, gender, look, tags) in ROWS:
-        pid = "cur_" + hashlib.md5(f"{title}|{ret}".encode()).hexdigest()[:10]
+    items, seen_ids = [], set()
+
+    def _add(title, brand, ret, q, pt, col, pmin, pmax, gender, look, tags, curated):
+        pid = ("cur_" if curated else "agg_") + hashlib.md5(f"{title}|{ret}|{q}".encode()).hexdigest()[:10]
+        if pid in seen_ids:
+            return
+        seen_ids.add(pid)
         items.append({
             "id": pid, "source": "curated", "title": title, "brand": brand,
             "retailer": ret, "buy_url": buy_url(ret, q), "search_query": q,
             "product_type": pt, "colour": col, "gender": gender,
             "price_min": pmin, "price_max": pmax, "currency": "INR",
-            "price_note": "Category estimate as of Aug 2026 - confirm on retailer site.",
+            "price_note": "Category estimate - confirm on retailer site.",
             "price_is_estimate": True,
             "image_query": q, "look": look, "tags": tags,
         })
+
+    for row in ROWS:
+        _add(*row, curated=True)
+    for row in _fanout_rows():
+        _add(*row, curated=False)
     return {
         "_meta": {
             "note": ("Curated trend-product seed for the FashionMind aggregator (India). "

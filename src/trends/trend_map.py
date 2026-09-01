@@ -81,6 +81,30 @@ _RULES: list[tuple[str, dict]] = [
     ("scarf",               {"product_types": ["Scarf"], "tags": ["scarf", "accessory"]}),
     ("tote bag",            {"product_types": ["Bag"], "tags": ["tote", "bag"]}),
     ("sunglasses",          {"product_types": ["Sunglasses"], "tags": ["sunglasses", "accessory"]}),
+
+    # festive / ethnic
+    ("sequin lehenga",      {"product_types": ["Dress", "Skirt"], "tags": ["festive", "lehenga", "sequin", "ethnic"]}),
+    ("lehenga",             {"product_types": ["Dress", "Skirt"], "tags": ["festive", "lehenga", "ethnic"]}),
+    ("indo western",        {"product_types": ["Dress", "Garment Set"], "tags": ["festive", "indo-western", "occasion"]}),
+    ("anarkali",            {"product_types": ["Dress"], "tags": ["festive", "anarkali", "kurta", "ethnic"]}),
+    ("chikankari",          {"product_types": ["Blouse", "Dress", "Garment Set"], "tags": ["festive", "chikankari", "kurta", "ethnic"]}),
+    ("kurta",               {"product_types": ["Blouse", "Garment Set", "Dress"], "tags": ["festive", "kurta", "ethnic"]}),
+    ("saree",               {"product_types": ["Dress"], "tags": ["festive", "saree", "ethnic"]}),
+    ("bandhgala",           {"product_types": ["Blazer"], "tags": ["festive", "bandhgala", "ethnic"]}),
+    ("sherwani",            {"product_types": ["Blazer"], "tags": ["festive", "sherwani", "ethnic", "wedding"]}),
+    ("nehru jacket",        {"product_types": ["Blazer", "Garment Set"], "tags": ["festive", "nehru-jacket", "ethnic"]}),
+    ("juttis",              {"product_types": ["Other shoe", "Ballerinas"], "tags": ["festive", "juttis", "ethnic", "shoes"]}),
+    ("oxidised jewellery",  {"product_types": ["Earring", "Necklace"], "tags": ["festive", "oxidised", "jewellery", "ethnic"]}),
+    ("kundan",              {"product_types": ["Necklace", "Earring"], "tags": ["festive", "kundan", "jewellery", "ethnic"]}),
+    ("dupatta",             {"product_types": ["Scarf"], "tags": ["festive", "dupatta", "ethnic", "accessory"]}),
+    ("potli",               {"product_types": ["Bag"], "tags": ["festive", "potli", "bag", "ethnic"]}),
+    ("velvet blazer",       {"product_types": ["Blazer"], "tags": ["velvet", "going-out", "party"]}),
+    ("peplum top",          {"product_types": ["Top", "Blouse"], "tags": ["peplum", "going-out"]}),
+    ("halter top",          {"product_types": ["Top", "Bodysuit"], "tags": ["halter", "going-out"]}),
+    ("pleated skirt",       {"product_types": ["Skirt"], "tags": ["pleated", "skirt"]}),
+    ("leather jacket",      {"product_types": ["Jacket"], "tags": ["leather", "jacket"]}),
+    ("denim jacket",        {"product_types": ["Jacket"], "tags": ["denim", "jacket"]}),
+    ("tomato girl",         {"product_types": ["Dress", "Skirt", "Top"], "tags": ["tomato-girl", "summer", "red"]}),
 ]
 
 def map_trend(keyword: str) -> dict:

@@ -22,8 +22,11 @@
 :root[data-theme="dark"]{--bg:#141021;--surface:#1C1730;--surface-2:#221C39;--lav:#241E42;--t1:#F3F0FB;--t2:#B4AECB;--t3:#7E7898;--line:#2B2545;--line-2:#39325A;--sh:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);--sh-h:0 24px 48px -16px rgba(0,0,0,.6)}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:var(--body);background:var(--bg);color:var(--t1);line-height:1.55;-webkit-font-smoothing:antialiased;font-size:15px}
+body{font-family:var(--body);background:var(--bg);color:var(--t1);line-height:1.55;-webkit-font-smoothing:antialiased;font-size:15px;overflow-x:hidden}
 img{display:block;max-width:100%}a{color:inherit;text-decoration:none}
+/* stop long words / grid children forcing horizontal overflow on mobile */
+.hero>*,.sec-head>*,.trust>*,.dash-grid>*,.styleboard>*{min-width:0}
+.hero .sub,.sec-head p,.page-head p,.trust p{overflow-wrap:anywhere}
 button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
 h1,h2,h3,h4{font-family:var(--disp);letter-spacing:-.02em;line-height:1.12}
 [hidden]{display:none!important}
@@ -70,8 +73,14 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 .rail::-webkit-scrollbar{height:5px}.rail::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px}
 .rail>*{scroll-snap-align:start;flex:0 0 auto}
 .grid{display:grid;gap:20px}
-@media(min-width:1000px){.grid.g5{grid-template-columns:repeat(5,1fr)}.grid.g4{grid-template-columns:repeat(4,1fr)}.grid.g2{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:999px){.grid{grid-template-columns:repeat(2,1fr)}}
+/* fluid grids — mobile-first: phone 2-up · tablet 3-up · laptop 4-up · wide 5-up */
+.grid.g5,.grid.g4{grid-template-columns:repeat(2,1fr)}
+.grid.g2{grid-template-columns:1fr}
+@media(min-width:600px){.grid.g2{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:720px){.grid.g5,.grid.g4{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.grid.g5,.grid.g4{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1240px){.grid.g5{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:460px){.grid{gap:13px}}
 
 /* product card */
 .pcard{width:250px;background:var(--surface);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:transform .2s cubic-bezier(.2,.7,.3,1),box-shadow .2s;cursor:pointer}
@@ -94,13 +103,65 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 .pcard .price .off{color:var(--turq);font-family:var(--disp);font-weight:700;font-size:11px}
 .pcard .reason{margin-top:8px;font-size:12.5px;color:var(--t2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 
+/* designed editorial tile — full-bleed card where we have no product photo */
+.pcard.tilecard{background:none}
+.pcard.tilecard .ph{aspect-ratio:5/6}
+.tile{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:16px 16px 17px;color:#fff;isolation:isolate}
+.tile .glow{position:absolute;inset:0;z-index:-1;background:radial-gradient(78% 52% at 84% 2%,var(--tacc,rgba(255,255,255,.3)),transparent 58%),radial-gradient(92% 66% at 8% 110%,rgba(255,255,255,.12),transparent 52%)}
+.tile .ghost{position:absolute;right:-10px;top:38%;transform:translateY(-50%);font-family:var(--disp);font-weight:800;font-size:150px;line-height:1;letter-spacing:-.06em;opacity:.09;pointer-events:none;user-select:none}
+.tile .cat{position:relative;font-family:var(--disp);font-weight:700;font-size:10px;letter-spacing:.13em;text-transform:uppercase;opacity:.92;max-width:calc(100% - 42px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .bot{position:relative;display:flex;flex-direction:column;gap:6px}
+.tile .nm{font-family:var(--disp);font-weight:800;font-size:19px;line-height:1.15;letter-spacing:-.02em;text-shadow:0 2px 20px rgba(0,0,0,.32);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .prc{display:flex;align-items:baseline;gap:7px;font-family:var(--disp)}
+.tile .prc b{font-weight:800;font-size:15px}
+.tile .prc s{opacity:.55;font-size:11.5px}
+.tile .prc .off{font-weight:700;font-size:10.5px;background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px}
+.tile .rz{font-size:11.5px;opacity:.82;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.tile .vm{position:absolute;right:12px;bottom:12px;width:15px;height:15px;opacity:.42}
+.pcard.tilecard:hover .tile .bot{transform:translateY(-3px);transition:transform .25s}
+.dimg{position:relative}
+.dimg .tile .nm{font-size:22px;-webkit-line-clamp:3}
+
+/* pinterest-style pin: photo + caption scrim (trend shopping) */
+.pcard.pin{background:none}
+.pcard.pin .ph{aspect-ratio:4/5}
+.pcard.pin .shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;transition:transform .5s}
+.pcard.pin:hover .shot{transform:scale(1.05)}
+.pcard.pin .ph.noimg{background:linear-gradient(155deg,#211a38 0%,var(--tb,#5b40b0) 130%)}
+.pcard.pin .ph.noimg .shot{display:none}
+.pincap{position:absolute;inset:auto 0 0 0;z-index:2;padding:26px 14px 13px 14px;color:#fff;
+  background:linear-gradient(to top,rgba(20,14,32,.82) 0%,rgba(20,14,32,.45) 55%,transparent 100%)}
+.pincap .r{font-family:var(--disp);font-weight:700;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+.pincap .n{font-family:var(--disp);font-weight:800;font-size:14px;line-height:1.2;margin:3px 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pincap .p{font-family:var(--disp);font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
+.pincap .p .off{font-weight:700;font-size:9.5px;background:rgba(255,255,255,.22);padding:2px 6px;border-radius:5px}
+.pincap .p s{opacity:.55;font-weight:400;font-size:10.5px}
+.pcard.pin .save{position:absolute;top:10px;right:10px;z-index:3;background:var(--rose);color:#fff;font-family:var(--disp);font-weight:800;font-size:11px;padding:6px 12px;border-radius:999px;opacity:0;transform:translateY(-4px);transition:.16s}
+.pcard.pin:hover .save{opacity:1;transform:none}
+
+/* "how to style it" board */
+.styleboard{background:var(--lav);border-radius:var(--r-l);padding:20px 22px;margin:22px 0 6px}
+.styleboard .sh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.styleboard .sh b{font-family:var(--disp);font-weight:800;font-size:15px}
+.styleboard .sh span{font-size:12px;color:var(--t2)}
+.styleboard .strip{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
+.styleboard .look{flex:0 0 128px;cursor:pointer}
+.styleboard .look .im{aspect-ratio:4/5;border-radius:var(--r-s);overflow:hidden;background:var(--surface-2);position:relative}
+.styleboard .look .im img{width:100%;height:100%;object-fit:cover}
+.styleboard .look .im .slot{position:absolute;left:6px;top:6px;background:var(--plum);color:#fff;font-family:var(--disp);font-weight:700;font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px}
+.styleboard .look .t{font-family:var(--disp);font-weight:700;font-size:11.5px;margin-top:6px;line-height:1.25}
+.styleboard .look .pr{font-size:11px;color:var(--t2)}
+.styleboard .why{font-size:12.5px;color:var(--t1);margin-top:12px;line-height:1.5}
+.styleboard .why b{font-family:var(--disp)}
+
 /* hero */
 .hero{display:grid;gap:44px;align-items:center;padding:60px 0 24px}
-@media(min-width:980px){.hero{grid-template-columns:1.05fr .95fr}}
-.hero h1{font-size:54px;font-weight:800;letter-spacing:-.035em}
-.hero .sub{font-size:17px;color:var(--t2);margin:20px 0 30px;max-width:430px}
+@media(min-width:1000px){.hero{grid-template-columns:1.05fr .95fr}}
+.hero h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.035em}
+.hero .sub{font-size:clamp(15px,2.2vw,17px);color:var(--t2);margin:20px 0 30px;max-width:430px}
 .hero .btns{display:flex;gap:14px;flex-wrap:wrap}
-.hero-img{position:relative;max-width:430px;margin-left:auto}
+.hero-img{position:relative;width:100%;max-width:430px;margin:0 auto}
+@media(min-width:1000px){.hero-img{margin-left:auto;margin-right:0}}
 .hero-img .frame{border-radius:var(--r-l);overflow:hidden;aspect-ratio:4/5;box-shadow:var(--sh-h)}
 .hero-img .frame img{width:100%;height:100%;object-fit:cover}
 .float{position:absolute;background:var(--surface);border-radius:14px;padding:9px 13px;box-shadow:var(--sh-h);font-family:var(--disp);font-weight:700;font-size:12px;display:flex;align-items:center;gap:8px;white-space:nowrap}
@@ -109,14 +170,40 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 .float.a .ic{background:var(--lav);color:var(--violet)}
 .float.b .ic{background:color-mix(in srgb,var(--turq) 18%,transparent);color:var(--turq)}
 .float.c .ic{background:color-mix(in srgb,var(--yellow) 30%,transparent);color:#b58900}
-@media(max-width:979px){.hero h1{font-size:38px}.float.a,.float.b{display:none}}
+@media(max-width:560px){.float.a,.float.b{display:none}.float.c{left:8px;bottom:12px}}
 
-/* trending types strip */
-.tt-strip{display:flex;gap:12px;flex-wrap:wrap}
-.tt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:150px;cursor:pointer;transition:.15s}
-.tt:hover{border-color:var(--violet)}
-.tt .n{font-family:var(--disp);font-weight:700;font-size:14px}
-.tt .g{font-size:11.5px;color:var(--turq);font-weight:700;font-family:var(--disp)}
+/* trend cards */
+.trend-grid{display:grid;gap:18px;grid-template-columns:repeat(2,1fr)}
+@media(max-width:480px){.trend-grid{grid-template-columns:1fr;gap:14px}}
+@media(min-width:900px){.trend-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1240px){.trend-grid{grid-template-columns:repeat(4,1fr)}}
+.trend-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);cursor:pointer;transition:transform .2s,box-shadow .2s}
+.trend-card:hover{transform:translateY(-5px);box-shadow:var(--sh-h)}
+.trend-card .im{position:relative;aspect-ratio:16/11;overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;isolation:isolate}
+.trend-card .im img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.trend-card:hover .im img{transform:scale(1.05)}
+.trend-card .im .tw{position:relative;z-index:1;font-family:var(--disp);font-weight:800;font-size:clamp(16px,2vw,20px);letter-spacing:-.02em;color:#fff;text-align:center;padding:0 14px;text-transform:capitalize;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.trend-card .im::after{content:"";position:absolute;inset:0;z-index:0;background:radial-gradient(70% 55% at 82% 4%,var(--tacc,rgba(255,255,255,.22)),transparent 60%)}
+.trend-card:hover .im .tw{transform:scale(1.04);transition:transform .25s}
+.trend-card .b{padding:14px 15px 16px}
+.trend-card .tt{font-family:var(--disp);font-weight:800;font-size:15px;text-transform:capitalize;display:flex;align-items:center;gap:8px}
+.trend-card .tt em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--turq);background:color-mix(in srgb,var(--turq) 14%,transparent);padding:2px 7px;border-radius:7px}
+.trend-card .d{font-size:12.5px;color:var(--t2);margin-top:5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.festive{display:grid;gap:20px;align-items:center;border-radius:var(--r-l);padding:26px 30px;margin-bottom:22px;
+  background:linear-gradient(120deg,#2A1E3F 0%,#3B2A57 60%,#46C7C0 220%);color:#fff}
+@media(min-width:760px){.festive{grid-template-columns:1.4fr 1fr}}
+.festive .eyebrow{color:#F6D65B}
+.festive h3{font-size:23px;font-weight:800;margin:6px 0}
+.festive p{font-size:13.5px;opacity:.9}
+.festive .fk{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.festive .fk button{font-family:var(--disp);font-weight:700;font-size:12px;padding:7px 13px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;text-transform:capitalize}
+.festive .fk button:hover{background:rgba(255,255,255,.26)}
+.retailers{margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+.retailers .eyebrow{margin-bottom:12px}
+.retailers .row{display:flex;flex-wrap:wrap;gap:10px}
+.retailers .row span{font-family:var(--disp);font-weight:700;font-size:12.5px;color:var(--t2);background:var(--surface-2);border-radius:9px;padding:7px 13px}
+.festive .im.festive-tile{border-radius:16px;overflow:hidden;aspect-ratio:4/3;display:grid;place-items:center;text-align:center;padding:18px;background:linear-gradient(140deg,#5A2233 0%,#8A3B2E 45%,#C79A3E 130%)}
+.festive .im.festive-tile .fg{font-family:var(--disp);font-weight:800;font-size:clamp(20px,4vw,30px);letter-spacing:.01em;color:#F7ECD4;text-shadow:0 2px 20px rgba(0,0,0,.32)}
 
 /* trust */
 .trust{background:var(--lav);border-radius:var(--r-l);padding:32px 36px;display:grid;gap:28px;align-items:center}
@@ -179,6 +266,15 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 .bub.u{align-self:flex-end;background:var(--violet);color:#fff;border-bottom-right-radius:5px}
 .bub.a{align-self:flex-start;background:var(--surface-2);border-bottom-left-radius:5px}
 .bub.tool{align-self:flex-start;background:color-mix(in srgb,var(--turq) 15%,transparent);color:var(--turq);font-family:var(--disp);font-weight:700;font-size:11.5px;border-radius:999px;padding:5px 13px}
+.bub.a a{color:var(--violet);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.chat-prods{align-self:flex-start;width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+@media(min-width:520px){.chat-prods{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+.chat-pin{display:block;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden;box-shadow:var(--sh);transition:transform .15s}
+.chat-pin:hover{transform:translateY(-3px);box-shadow:var(--sh-h)}
+.chat-pin .im{aspect-ratio:4/5;background:var(--surface-2);overflow:hidden}
+.chat-pin .im img{width:100%;height:100%;object-fit:cover}
+.chat-pin .t{font-family:var(--disp);font-weight:700;font-size:11.5px;line-height:1.25;padding:8px 9px 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chat-pin .pr{font-size:11px;color:var(--t2);padding:0 9px 9px}
 .chatin{display:flex;gap:10px;margin-top:14px}
 .chatin input{flex:1;border:1px solid var(--line-2);border-radius:12px;padding:13px 18px;font-size:14px;outline:none;background:var(--surface);color:var(--t1)}
 
@@ -199,14 +295,40 @@ nav.main a:hover{color:var(--t1)}nav.main a.on{color:var(--violet);background:va
 footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var(--t3);font-size:13px}
 
 .mobnav{display:none}.askbtn{display:none}
-@media(max-width:860px){
+
+/* ── tablet & below: bottom nav, tighter rhythm ───────────────────── */
+@media(max-width:1024px){
   nav.main,.hd-search{display:none}
-  .wrap{padding:0 20px}.hero{padding:32px 0 12px}
+  .hd{gap:10px;height:60px}
+  .wrap{padding:0 24px}
+  .hero{padding:28px 0 8px}
   .mobnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--surface);border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom))}
   .mobnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--disp);font-size:10px;font-weight:600;color:var(--t3);padding:6px 0}
   .mobnav a.on{color:var(--violet)}.mobnav a svg{width:20px;height:20px}
   .askbtn{display:flex;position:fixed;right:18px;bottom:76px;z-index:71;background:var(--violet);color:#fff;font-family:var(--disp);font-weight:700;font-size:13px;padding:12px 18px;border-radius:999px;box-shadow:0 12px 28px -8px rgba(108,76,246,.7);align-items:center;gap:7px}
-  body{padding-bottom:70px}.sec{margin:48px 0}
+  body{padding-bottom:72px}
+  .sec{margin:48px 0}
+  .sec-head h2{font-size:24px}
+  .page-head{padding:34px 0 6px}.page-head h1{font-size:30px}
+  .rail{margin:0 -24px;padding-left:24px;padding-right:24px}
+  .festive{padding:22px 22px}
+  .trust{padding:26px 22px}
+  .drawer{width:100vw;padding:22px 20px}
+}
+
+/* ── phones ──────────────────────────────────────────────────────── */
+@media(max-width:560px){
+  .wrap{padding:0 16px}
+  .rail{margin:0 -16px;padding-left:16px;padding-right:16px}
+  .pcard{width:76vw;max-width:280px}
+  .sec{margin:38px 0}
+  .sec-head{flex-wrap:wrap;gap:6px 16px}
+  .sec-head h2{font-size:21px}.sec-head p{font-size:13px}
+  .page-head h1{font-size:25px}
+  h1,.hero h1{overflow-wrap:anywhere}
+  .eyebrow{letter-spacing:.07em;font-size:10.5px;overflow-wrap:anywhere}
+  .festive h3{font-size:19px}
+  .trust{padding:22px 18px}
 }
 </style>
 </head>
@@ -222,9 +344,10 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
     <nav class="main" id="nav">
       <a data-p="home" class="on" onclick="go('home')">Home</a>
       <a data-p="foryou" onclick="go('foryou')">For You</a>
-      <a data-p="explain" onclick="go('explain')">Explain</a>
+      <a data-p="trends" onclick="go('trends')">Trends</a>
       <a data-p="explore" onclick="go('explore')">Explore</a>
-      <a data-p="dash" onclick="go('dash')">Dashboard</a>
+      <a data-p="chat" onclick="go('chat')">Stylist</a>
+      <a data-p="dash" onclick="go('dash')">About</a>
     </nav>
     <div class="grow"></div>
     <div class="hd-search">
@@ -243,9 +366,9 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
   <section class="page on" id="page-home">
     <div class="hero">
       <div>
-        <div class="eyebrow" style="margin-bottom:16px">Vibezz · personalised fashion recommender</div>
+        <div class="eyebrow" style="margin-bottom:16px">Vibezz · your personal stylist</div>
         <h1>Your style,<br>understood.</h1>
-        <p class="sub">A recommender trained on 11M H&amp;M purchases ranks the catalogue for you — and tells you why each pick made the cut.</p>
+        <p class="sub">Fashion chosen around your taste — with a clear reason behind every pick.</p>
         <div class="btns">
           <button class="btn pri" onclick="go('foryou')">See your picks</button>
           <button class="btn ghost" onclick="go('dash')">How it works</button>
@@ -253,30 +376,32 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
       </div>
       <div class="hero-img">
         <div class="frame"><img id="heroImg" alt="" src=""></div>
-        <div class="float a"><span class="ic">◆</span>Personalised match</div>
+        <div class="float a"><span class="ic">◆</span>Matched to your taste</div>
         <div class="float b"><span class="ic">↑</span>Trending <span class="turq">+24%</span></div>
-        <div class="float c"><span class="ic">◍</span>Explained by SHAP</div>
+        <div class="float c"><span class="ic">◍</span>A reason for every pick</div>
       </div>
     </div>
 
     <section class="sec">
-      <div class="sec-head"><div><h2>Picked for you</h2><p>Ranked by ALS retrieval + a LightGBM re-ranker. Tap a card for the reasons.</p></div>
+      <div class="sec-head"><div><h2>Picked for you</h2><p>Chosen around what you like. Tap a card to see why.</p></div>
         <a class="link" onclick="go('foryou')">View all →</a></div>
       <div class="rail" id="recRail"></div>
     </section>
 
     <section class="sec">
-      <div class="sec-head"><div><h2>Trending product types</h2><p>From the weekly demand-forecast model — one of the 13 ranking signals.</p></div></div>
-      <div class="tt-strip" id="ttStrip"></div>
+      <div class="sec-head"><div><h2>Trending now</h2><p>What's rising in fashion right now — shop it across Indian stores.</p></div>
+        <a class="link" onclick="go('trends')">All trends →</a></div>
+      <div id="festiveCard"></div>
+      <div class="trend-grid" id="homeTrends"></div>
     </section>
 
     <section class="sec">
       <div class="trust">
         <div>
-          <div class="eyebrow" style="margin-bottom:10px">Transparency</div>
-          <h3>Why you're seeing this</h3>
-          <p class="muted" style="font-size:13.5px;margin-top:8px">Every pick is a blend of your purchase history, item popularity and current trends. Roughly what drove the picks above:</p>
-          <button class="btn ghost sm" style="margin-top:16px" onclick="go('dash')">See the model →</button>
+          <div class="eyebrow" style="margin-bottom:10px">Why you're seeing this</div>
+          <h3>Where your picks come from</h3>
+          <p class="muted" style="font-size:13.5px;margin-top:8px">Your picks come from what you've bought before, what's popular, and what's trending now. Roughly what shaped the ones above:</p>
+          <button class="btn ghost sm" style="margin-top:16px" onclick="go('dash')">How it works →</button>
         </div>
         <div id="trustRows"></div>
       </div>
@@ -285,49 +410,43 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
 
   <!-- FOR YOU -->
   <section class="page" id="page-foryou">
-    <div class="page-head"><h1>For you</h1><p id="fyMeta">Your full ranked feed. Click any item to see the SHAP reasons behind it.</p></div>
+    <div class="page-head"><h1>For you</h1><p id="fyMeta">Everything picked for you. Tap an item to see why.</p></div>
     <div class="grid g5" id="fyGrid" style="margin-top:28px"></div>
-  </section>
-
-  <!-- EXPLAIN -->
-  <section class="page" id="page-explain">
-    <div class="page-head"><h1>Explain a recommendation</h1><p>Pick one of your picks to see the per-item reasons, and what the re-ranker weighs overall.</p></div>
-    <div class="dash-grid d2" style="margin-top:28px">
-      <div class="card">
-        <h3>Pick an item</h3>
-        <div class="cap">From your current recommendations</div>
-        <div class="grid g2" id="exPick"></div>
-      </div>
-      <div class="card">
-        <h3>What the model weighs overall</h3>
-        <div class="cap">Global SHAP feature importance · LightGBM LambdaRank</div>
-        <div id="exShap"></div>
-      </div>
-    </div>
   </section>
 
   <!-- EXPLORE -->
   <section class="page" id="page-explore">
-    <div class="page-head"><h1>Explore the catalogue</h1><p>The H&amp;M catalogue the recommender is trained on.</p></div>
+    <div class="page-head"><h1>Explore the collection</h1><p>Everything in the Vibezz wardrobe.</p></div>
     <div class="rail" id="exFilters" style="margin:22px 0"></div>
     <div class="grid g5" id="exGrid" style="margin-top:8px"></div>
   </section>
 
+  <!-- TRENDS -->
+  <section class="page" id="page-trends">
+    <div class="page-head"><h1>Trends</h1><p id="trMeta">Rising fashion searches — pick one to shop it across Indian stores.</p></div>
+    <div id="trFestive" style="margin:20px 0"></div>
+    <div class="rail" id="trChips" style="margin:18px 0"></div>
+    <div id="trStyle"></div>
+    <h3 id="trActiveName" style="font-size:20px;font-weight:800;margin:24px 0 4px"></h3>
+    <div class="grid g5" id="trGrid" style="margin-top:16px"></div>
+    <div class="retailers" id="trRetailers"></div>
+  </section>
+
   <!-- DASHBOARD -->
   <section class="page" id="page-dash">
-    <div class="page-head"><h1>Dashboard</h1><p id="dashSub">Model performance — every number is read live from the training outputs, not entered by hand.</p></div>
+    <div class="page-head"><h1>How Vibezz works</h1><p id="dashSub">The plain-English version — with real numbers from testing.</p></div>
     <div id="dashAuth" style="margin:18px 0"></div>
     <div id="dashBody">
       <section class="sec" style="margin-top:24px">
-        <div class="sec-head"><div><h2>Recommendation performance</h2><p>Strict temporal holdout — train, then predict the next weeks. Held-out users never seen in training.</p></div></div>
+        <div class="sec-head"><div><h2>How good are the picks?</h2><p>Tested on shoppers the system had never seen, predicting what they'd buy next.</p></div></div>
         <div class="dash-grid d2">
           <div class="card">
-            <h3>Held-out metrics · full pipeline</h3>
-            <div class="cap" id="heldCap">held-out test users</div>
+            <h3>Hit rate on new shoppers</h3>
+            <div class="cap" id="heldCap"></div>
             <div class="kpi" id="kpiHeld"></div>
           </div>
           <div class="card">
-            <h3>Re-ranker vs ALS · paired test</h3>
+            <h3>With personalisation vs. without</h3>
             <div class="cap" id="pairedCap"></div>
             <div id="pairedBars"></div>
             <div class="note" id="pairedNote"></div>
@@ -336,29 +455,24 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
       </section>
 
       <section class="sec">
-        <div class="sec-head"><div><h2>Model comparison</h2><p>Recall@10 on the same held-out users, plus the retrieval ceiling.</p></div></div>
+        <div class="sec-head"><div><h2>How the picks stack up</h2><p>The same shoppers, three ways of choosing.</p></div></div>
         <div class="card"><div id="modelBars"></div><div class="note" id="ceilNote"></div></div>
       </section>
 
       <section class="sec">
         <div class="dash-grid d2">
           <div class="card">
-            <h3>Why a recommendation?</h3>
-            <div class="cap">Global SHAP feature importance for the re-ranker</div>
+            <h3>What drives a pick</h3>
+            <div class="cap">Which signals matter most, across everyone</div>
             <div id="shapBars"></div>
           </div>
           <div class="card">
-            <h3>Trend forecast</h3>
-            <div class="cap">LightGBM weekly demand model</div>
+            <h3>Trend forecasting</h3>
+            <div class="cap">Predicting next week's demand</div>
             <div class="kpi" id="kpiTrend"></div>
             <div class="note" id="trendNote"></div>
           </div>
         </div>
-      </section>
-
-      <section class="sec">
-        <div class="sec-head"><div><h2>Pipeline</h2><p id="pipeMeta"></p></div></div>
-        <div class="card"><div class="pipe" id="pipeSteps"></div></div>
       </section>
       <div style="margin:16px 0 40px" id="dashLogout" hidden><button class="btn ghost sm" onclick="logout()">Log out</button></div>
     </div>
@@ -373,17 +487,16 @@ footer{border-top:1px solid var(--line);margin-top:70px;padding:34px 0;color:var
     </div>
   </section>
 
-  <footer><div>Vibezz — personalised H&amp;M recommender. Trained on 11M purchases · ALS + LightGBM LambdaRank + SHAP. Metrics re-derivable from <code>data/features/</code>.</div></footer>
+  <footer><div>Vibezz — your personal fashion stylist.</div></footer>
 </main>
 
 <nav class="mobnav" id="mobnav">
   <a data-p="home" class="on" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Home</a>
   <a data-p="foryou" onclick="go('foryou')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>For You</a>
+  <a data-p="trends" onclick="go('trends')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 6 13.5 15.5 8.5 10.5 1 18"/><path d="M17 6h6v6"/></svg>Trends</a>
   <a data-p="explore" onclick="go('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Explore</a>
-  <a data-p="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 9 11l4 4 8-8"/><path d="M14 7h7v7"/></svg>Model</a>
   <a data-p="chat" onclick="go('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Stylist</a>
 </nav>
-<button class="askbtn" onclick="go('chat')">✦ Ask Vibezz</button>
 
 <div class="drawer-bg" id="drawerBg" onclick="closeDrawer()"></div>
 <aside class="drawer" id="drawer"></aside>
@@ -399,89 +512,208 @@ let chatHistory=[],_recs=null,_metrics=null;
 (function(){const t=localStorage.getItem('vz_theme');if(t)document.documentElement.setAttribute('data-theme',t)})();
 function toggleTheme(){const c=document.documentElement.getAttribute('data-theme');const n=c==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('vz_theme',n)}
 
-/* ---- editorial imagery: real H&M packshot, else category photo ---- */
+/* ---- category-matched editorial photos (verified: each id is the garment named) ---- */
 const IMG=id=>`https://images.unsplash.com/photo-${id}?w=640&auto=format&fit=crop&q=80`;
-const POOL={dress:['1595777457583-95e059d581b8','1572804013309-59a88b7e92f1','1566174053879-31528523f8ae','1612336307429-8a898d10e223','1496747611176-843222e1e57c'],
-jean:['1542272604-787c3835535d','1541099649105-f69ad21f3246','1594633312681-425c7b97ccd1'],trouser:['1594633312681-425c7b97ccd1','1445205170230-053b83016050','1541099649105-f69ad21f3246'],
-short:['1591195853828-11db59a44f6b','1445205170230-053b83016050'],skirt:['1583496661160-fb5886a0aaaa','1591195853828-11db59a44f6b','1469334031218-e382a71b716b'],
-top:['1503342217505-b0a15ec3261c','1554568218-0f1715e72254','1485462537746-965f33f7f6a7','1434389677669-e08b4cac3105'],shirt:['1485462537746-965f33f7f6a7','1434389677669-e08b4cac3105','1554568218-0f1715e72254'],
-blouse:['1434389677669-e08b4cac3105','1485462537746-965f33f7f6a7'],'t-shirt':['1503342217505-b0a15ec3261c','1583743814966-8936f5b7be1a'],vest:['1618354691373-d851c5c3a990','1503342217505-b0a15ec3261c'],
-sweater:['1620799140408-edc6dcb6d633','1576566588028-4147f3842f27','1434389677669-e08b4cac3105'],cardigan:['1620799140408-edc6dcb6d633','1591047139829-d91aecb6caea'],hoodie:['1576566588028-4147f3842f27'],
-jacket:['1551028719-00167b16eac5','1544441893-675973e31985','1548036328-c9fa89d128fa'],blazer:['1591047139829-d91aecb6caea','1548036328-c9fa89d128fa'],coat:['1539109136881-3be0616acf4b','1487222477894-8943e31ef7b2'],
-sneaker:['1595950653106-6c9ebd614d3a','1600185365483-26d7a4cc7519','1549298916-b41d501d3772'],boot:['1608256246200-53e635b5b65f','1543163521-1bf539c55dd2'],ballerina:['1595950653106-6c9ebd614d3a'],
-shoe:['1595950653106-6c9ebd614d3a','1460353581641-37baddab0fa2'],bag:['1584917865442-de89df76afd3','1553062407-98eeb64c6a62','1512436991641-6745cdb1723f'],
-scarf:['1467043198406-dc953a3defa0'],sunglass:['1521572163474-6864f9cf17ab'],set:['1524504388940-b1c1722653e1','1483118714900-540cf339fd46']};
-const GEN=['1441984904996-e0b6ba687e04','1479064555552-3ef4979f8908','1509631179647-0177331693ae','1515372039744-b8f02a3ae446','1502716119720-b23a93e5fe1b','1483118714900-540cf339fd46','1475180098004-ca77a66827be'];
+// dresses / gowns
+const D1='1595777457583-95e059d581b8',D2='1572804013309-59a88b7e92f1',D3='1566174053879-31528523f8ae',D4='1612336307429-8a898d10e223',D5='1496747611176-843222e1e57c',
+// denim / trousers
+ J1='1542272604-787c3835535d'/*folded jeans*/,J2='1541099649105-f69ad21f3246'/*ripped jeans*/,J3='1594633312681-425c7b97ccd1'/*joggers*/,J4='1544441893-675973e31985'/*trouser flatlay*/,
+ SH='1591195853828-11db59a44f6b'/*denim shorts*/,SK='1583496661160-fb5886a0aaaa'/*shirt + black skirt*/,
+// tops / tees
+ T1='1503342217505-b0a15ec3261c'/*black tee*/,T2='1554568218-0f1715e72254'/*white graphic tee*/,T3='1583743814966-8936f5b7be1a'/*black tee packshot*/,T4='1576566588028-4147f3842f27'/*graphic tee packshot*/,T5='1524504388940-b1c1722653e1'/*black sheer top*/,T6='1469334031218-e382a71b716b'/*crop top*/,
+// knit
+ K1='1620799140408-edc6dcb6d633'/*white sweatshirt*/,K2='1434389677669-e08b4cac3105'/*knit poncho*/,
+// outerwear
+ JK1='1591047139829-d91aecb6caea'/*rust bomber*/,JK2='1551028719-00167b16eac5'/*black leather biker*/,JK3='1487222477894-8943e31ef7b2'/*brown leather*/,
+ CO1='1485462537746-965f33f7f6a7'/*pink coat*/,CO2='1539109136881-3be0616acf4b'/*blue trench*/,
+// shoes / bags
+ SN1='1595950653106-6c9ebd614d3a',SN2='1600185365483-26d7a4cc7519',BT='1608256246200-53e635b5b65f',
+ BG1='1548036328-c9fa89d128fa',BG2='1584917865442-de89df76afd3';
+const POOL={
+ dress:[D1,D2,D3,D4,D5],gown:[D1,D3,D4],
+ jean:[J1,J2,J3],trouser:[J3,J4,J1,J2],chino:[J4,J3],jogger:[J3],legging:[J3,J2],
+ short:[SH,J2],skirt:[SK,D3],
+ 'vest top':[T6,T5,T1],tank:[T6,T1],bodysuit:[T5,T6],
+ 't-shirt':[T1,T2,T3,T4],tshirt:[T1,T2,T3,T4],tee:[T1,T2,T3,T4],polo:[T2,T1],
+ top:[T1,T2,T5,T6,SK],shirt:[SK,T2,T1],blouse:[SK,T5,D3],
+ sweater:[K1,K2],jumper:[K1],sweatshirt:[K1],knit:[K2,K1],cardigan:[K2,K1],hoodie:[K1,T1],
+ blazer:[JK3,JK2],bomber:[JK1],jacket:[JK1,JK2,JK3],coat:[CO1,CO2],parka:[CO2,CO1],
+ 'garment set':[SK,J4],set:[SK,J4],jumpsuit:[D4,SK],playsuit:[D4],romper:[D4],
+ sneaker:[SN1,SN2],trainer:[SN1,SN2],boot:[BT],ballerina:[SN1],sandal:[SN1],loafer:[BT,SN1],'other shoe':[SN1,BT],shoe:[SN1,SN2,BT],
+ bag:[BG1,BG2],'shoulder bag':[BG1],scarf:[CO1],sunglass:[T6],earring:[D3],necklace:[D3],hat:[T6],belt:[J4]};
+/* fallback = people wearing clothes only, never object close-ups */
+const GEN=[D1,D2,T1,T2,T4,D5,T5,D3,K1,D4];
 function seed(s){s=String(s||'x');let h=7;for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return Math.abs(h)}
-function catImg(type,key){const t=String(type||'').toLowerCase().replace(/[_/]/g,' ');let p=GEN;for(const k in POOL){if(t.includes(k)){p=POOL[k];break}}return IMG(p[seed(key||type)%p.length])}
-function hmImg(aid){const s=String(aid||'').replace(/\D/g,'');return s.length>=5?`${API}/images/${s.slice(0,3)}/${s.padStart(10,'0')}.jpg`:''}
-function imgTag(aid,type,key,cls){const hm=hmImg(aid),cat=catImg(type,key);
-  return `<img ${cls?`class="${cls}"`:''} loading="lazy" src="${hm||cat}" onerror="this.onerror=null;this.src='${cat}'" alt="${(type||'item')}">`}
+function poolFor(type){const t=String(type||'').toLowerCase().replace(/[_/]/g,' ');for(const k in POOL){if(t.includes(k))return POOL[k]}return GEN}
+function catImg(type,key){const p=poolFor(type);return IMG(p[seed(key||type)%p.length])}
+/* per-render image de-dup so a feed doesn't show the same photo five times */
+let _imgUse={};
+function freshImg(){_imgUse={}}
+function pickImg(type,key){
+  const cand=poolFor(type).concat(GEN),st=seed(key||type)%cand.length;
+  let best=cand[st],bestN=Infinity;
+  for(let i=0;i<cand.length;i++){const id=cand[(st+i)%cand.length],n=_imgUse[id]||0;
+    if(n===0){_imgUse[id]=1;return IMG(id)}
+    if(n<bestN){bestN=n;best=id}}
+  _imgUse[best]=(_imgUse[best]||0)+1;      // everything used once already → pick least-used
+  return IMG(best);
+}
+function imgTag(aid,type,key,cls){const cat=pickImg(type,key);
+  return `<img ${cls?`class="${cls}"`:''} loading="lazy" src="${cat}" alt="${(type||'item')}">`}
 
 function inr(v){if(v==null||v==='')return '';const n=v<50?Math.round(v*500*83):Math.round(v);return '₹'+n.toLocaleString('en-IN')}
 function priceHtml(p){const v=p.avg_price??p.price;if(v==null)return '<b>—</b>';return `<b>${inr(v)}</b> <s>${inr(v*1.5)}</s> <span class="off">35% off</span>`}
 function cap(s){return String(s||'').replace(/\b\w/g,c=>c.toUpperCase())}
+function niceName(s,ty){
+  s=String(s||'').trim()
+    .replace(/\s*\(\d+\)\s*$/,'')                 // drop "(1)"
+    .replace(/^\d+\s*p(k)?\s+/i,'')               // drop "7p " / "3pk " pack prefix
+    .replace(/\s+(TRS|S\/S|L\/S|SS|LS|NW|OTW|PU|GRS|BB|OL|JSY|KN)$/i,'') // drop catalogue suffix codes
+    .replace(/\bshaftless\b/i,'')                 // internal cut jargon
+    .replace(/\s{2,}/g,' ').trim();
+  if(!s)return cap(String(ty||'Item').replace(/[_/]/g,' '));
+  if(/^[A-Z0-9][A-Z0-9 .&/'\-]+$/.test(s))s=cap(s.toLowerCase());  // de-shout ALL-CAPS
+  return s;
+}
+function brandTag(ty){return esc(cap(String(ty||'Apparel').replace(/[_/]/g,' ')))}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
 
 function setPfp(){const el=document.getElementById('pfp');if(user){el.classList.add('user');el.textContent=user.name[0].toUpperCase();}else{el.classList.remove('user');el.innerHTML='<svg class=\"vmark\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path class=\"l\" d=\"M6 4.5c4.6-.5 8 .3 8.8 2.9L28 40.2c.6 1.7-.7 3.3-2.8 3.4-2 .1-4-1-4.7-3L3.6 8.9C2.7 6.6 3.6 5 6 4.5Z\"/><path class=\"r\" d=\"M22.6 33C25 21.8 30.9 10.8 40.2 5c1.9-1.2 3.5.6 2.6 2.7-3.9 8.5-6.7 16.4-8.5 23.4-1.2 4.4-3.8 10.2-7.2 13.8-2.2 2.3-5.6.2-5.3-3 .2-2.1 1.1-5.1 2.8-8.1Z\"/></svg>';}}
 function go(p,arg){
+  freshImg();
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
   const el=document.getElementById('page-'+p);if(!el)return;el.classList.add('on');
   document.querySelectorAll('#nav a,#mobnav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   scrollTo({top:0,behavior:'smooth'});
   if(p==='foryou')loadForYou();
-  if(p==='explain')loadExplainPage();
   if(p==='explore')loadExplore();
+  if(p==='trends')loadTrends();
   if(p==='dash')loadDash();
   if(p==='chat')renderChat();
 }
 
+/* keep the feed looking like a fashion edit — drop basics/underwear/socks etc. */
+const HIDE_TYPE=/\b(socks?|underwear|briefs?|bras?|thong|knickers?|boxers?|lingerie|shapewear|nightwear|night ?dress|pyjamas?|pajamas?|swimwear|swimsuits?|bikini|tights|leggings|hosiery|slippers?|dungarees?|umbrella|hair ?(clip|band)|headband|alice ?band|scrunchie|gloves?|kids?|children|baby|infant|toddler|nursing|maternity)\b/i;
+function presentable(p){return !HIDE_TYPE.test(String(p.product_type_name||'')+' '+String(p.product_name||''))}
 async function getRecs(n){
   if(_recs&&_recs.length>=n)return _recs;
-  try{_recs=(await (await fetch(`${API}/recommend`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:user?.customer_id||'guest',n})})).json()).recommendations||[]}catch(e){_recs=[]}
+  try{
+    const raw=(await (await fetch(`${API}/recommend`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:user?.customer_id||'guest',n:Math.max(n*4,48)})})).json()).recommendations||[];
+    const seen=new Set(),keyOf=p=>((p.product_name||'').toLowerCase().replace(/\s*\(\d+\)\s*$/,'').trim()||p.article_id);
+    const dedupe=p=>{const k=keyOf(p);if(seen.has(k))return false;seen.add(k);return true};
+    const good=raw.filter(p=>presentable(p)&&dedupe(p));
+    const rest=raw.filter(p=>!seen.has(keyOf(p))&&dedupe(p));
+    _recs=good.concat(rest);           // presentable first, basics only as filler
+    // fetch real photos, but don't hold the feed hostage — late arrivals still
+    // populate ._img on the cached objects for the next render
+    try{await Promise.race([enrichPhotos(_recs),new Promise(r=>setTimeout(r,4500))])}catch(e){}
+  }catch(e){_recs=[]}
   return _recs;
 }
 async function getMetrics(){if(_metrics)return _metrics;try{_metrics=await (await fetch(`${API}/catalog/metrics`)).json()}catch(e){_metrics={}}return _metrics}
 
-function recCard(p){
-  const key=p.article_id||p.product_name,ty=p.product_type_name||'Apparel';
+/* ---- real product photos for catalogue items (grouped by type+colour) ---- */
+const _photoCache={};
+const _PHRASE={'vest top':'tank top','t-shirt':'t shirt','garment set':'co-ord set','jumpsuit/playsuit':'jumpsuit',
+  'leggings/tights':'leggings','other shoe':'shoes','ballerinas':'ballet flats','trousers':'trousers'};
+function photoQ(ty,col){
+  const t=String(ty||'').toLowerCase(); const tt=_PHRASE[t]||t;
+  return `${(col?col+' ':'')}${tt} women`.trim();
+}
+async function photosFor(ty,col){
+  const key=(String(ty||'')+'|'+String(col||'')).toLowerCase();
+  if(_photoCache[key])return _photoCache[key];
+  _photoCache[key]=(async()=>{
+    try{
+      const d=await (await fetch(`${API}/catalog/photos?q=${encodeURIComponent(photoQ(ty,col))}&n=12`)).json();
+      return (d.photos||[]).filter(p=>p.image);
+    }catch(e){return []}
+  })();
+  return _photoCache[key];
+}
+async function enrichPhotos(items){
+  const groups={};
+  items.forEach(p=>{const k=(p.product_type_name||'')+'|'+(p.colour_group_name||'');(groups[k]=groups[k]||[]).push(p)});
+  await Promise.all(Object.entries(groups).map(async([k,arr])=>{
+    const [ty,col]=k.split('|');
+    const photos=await photosFor(ty,col);
+    if(!photos.length)return;
+    arr.forEach((p,i)=>{const ph=photos[i%photos.length];p._img=ph.image;p._shopUrl=ph.buy_url||p._shopUrl});
+  }));
+  return items;
+}
+const FEATURE_LABEL={'High CF rank':'Matches your taste','Trending this week':'Trending right now','Product type':'Type of item',
+  'Colour group':'Colour','Garment type':'Style of garment','Matches price range':'In your price range',
+  'Popular item':'Popular with others','Visual style match':'Looks like what you like','Low CF rank':'Less like your taste'};
+function niceFeature(f){return FEATURE_LABEL[f]||f}
+
+/* ---- designed editorial tile (recommender has no product photography) ---- */
+const COL={'black':'#332a47','white':'#b6b0c6','off white':'#c3bdd1','grey':'#7f7a8e','light grey':'#9d98ab','dark grey':'#565163','greyish beige':'#a99f95',
+'beige':'#c6a982','light beige':'#d7c2a4','dark beige':'#a5865d','mole':'#736558',
+'blue':'#4867a8','light blue':'#7c9fcd','dark blue':'#313f66','turquoise':'#3fb6b0','greenish blue':'#3f9fb0',
+'pink':'#d585a3','light pink':'#e0aec1','dark pink':'#b45f7e',
+'red':'#bd4557','dark red':'#8a3444','orange':'#cd8352',
+'yellow':'#cdb264','light yellow':'#dcc98d','dark yellow':'#b9973f',
+'green':'#578a6a','dark green':'#3a5a49','light green':'#8ab298','khaki green':'#6f7550','yellowish green':'#8a9a55',
+'lilac purple':'#8f76bd','purple':'#7a5cc0','yellowish brown':'#8a6a45','brown':'#75563f','dark brown':'#4f3a2c',
+'silver':'#a3a5ad','gold':'#bfa057','metal':'#8a8c94'};
+function tileBase(c){c=(c||'').toLowerCase().trim();if(COL[c])return COL[c];
+  for(const k in COL){if(c&&(c.includes(k)||k.includes(c)))return COL[k]}return '#5b40b0'}
+const TACC=['rgba(108,76,246,.5)','rgba(70,199,192,.42)','rgba(236,78,156,.4)','rgba(246,214,91,.36)'];
+const VMK='<svg class="vm" viewBox="0 0 48 48" aria-hidden="true"><path fill="#fff" d="M6 4.5c4.6-.5 8 .3 8.8 2.9L28 40.2c.6 1.7-.7 3.3-2.8 3.4-2 .1-4-1-4.7-3L3.6 8.9C2.7 6.6 3.6 5 6 4.5Z"/><path fill="#fff" d="M22.6 33C25 21.8 30.9 10.8 40.2 5c1.9-1.2 3.5.6 2.6 2.7-3.9 8.5-6.7 16.4-8.5 23.4-1.2 4.4-3.8 10.2-7.2 13.8-2.2 2.3-5.6.2-5.3-3 .2-2.1 1.1-5.1 2.8-8.1Z"/></svg>';
+function tileInner(p,ty,reason){
+  const nm=niceName(p.product_name,ty);
+  const s=seed(p.article_id||p.product_name),ang=125+s%48,acc=TACC[s%TACC.length];
+  const col=p.colour_group_name||'';
+  return `<div class="tile" style="background:linear-gradient(${ang}deg,#211a38 2%,${tileBase(col)} 132%);--tacc:${acc}">
+    <div class="glow"></div><div class="ghost">${esc((nm[0]||'V').toUpperCase())}</div>
+    <div class="cat">${brandTag(ty)}${col?' · '+esc(cap(col)):''}</div>
+    <div class="bot">
+      <div class="nm">${esc(nm)}</div>
+      <div class="prc">${priceHtml(p)}</div>
+      ${reason?`<div class="rz">${esc(reason)}</div>`:''}
+    </div>${VMK}
+  </div>`;
+}
+const HEART=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>`;
+function productPin(p,onclick){
+  const ty=p.product_type_name||'Apparel',nm=niceName(p.product_name,ty),col=p.colour_group_name||'';
   const on=wl.includes(p.article_id)?'on':'';
-  const reason=(p.reasons&&p.reasons[0]||'').replace(/^[↑↓]\s*/,'')||`Fits your ${ty.toLowerCase()} preferences`;
-  return `<article class="pcard" onclick='openExplain(${JSON.stringify(p).replace(/'/g,"&#39;")})'>
-    <div class="ph">${imgTag(p.article_id,ty,key)}
-      <button class="heart ${on}" onclick="event.stopPropagation();toggleWl('${p.article_id}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg></button>
-      ${(p.trend_score>0.6)?'<div class="tagline"><span class="up">↑</span> Trending</div>':''}
-    </div>
-    <div class="body">
-      <div class="brand">H&amp;M</div>
-      <div class="name">${esc(p.product_name||ty)}</div>
-      <div class="price">${priceHtml(p)}</div>
-      <div class="reason">${esc(reason)}</div>
+  const cat=catImg(ty,p.article_id||nm);
+  const src=p._img||cat;
+  return `<article class="pcard pin" ${onclick}>
+    <div class="ph" style="--tb:${tileBase(col)}">
+      <img class="shot" loading="lazy" src="${esc(src)}" alt="${esc(ty)}" onerror="this.onerror=null;this.src='${cat}'">
+      <button class="heart ${on}" onclick="event.stopPropagation();toggleWl('${p.article_id}',this)">${HEART}</button>
+      <div class="pincap">
+        <div class="r">${brandTag(ty)}${col?' · '+esc(cap(col)):''}</div>
+        <div class="n">${esc(nm)}</div>
+        <div class="p">${priceHtml(p)}</div>
+      </div>
     </div></article>`;
 }
+function recCard(p){
+  return productPin(p,`onclick='openExplain(${JSON.stringify(p).replace(/'/g,"&#39;")})'`);
+}
 function catCard(p){
-  const ty=p.product_type_name||'Apparel';
-  return `<article class="pcard">
-    <div class="ph">${imgTag(p.article_id,ty,p.article_id)}
-      <button class="heart ${wl.includes(p.article_id)?'on':''}" onclick="toggleWl('${p.article_id}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg></button></div>
-    <div class="body"><div class="brand">H&amp;M · ${esc(ty)}</div><div class="name">${esc(p.product_name||ty)}</div><div class="price">${priceHtml(p)}</div></div></article>`;
+  return productPin(p, p._shopUrl?`onclick="window.open('${esc(p._shopUrl)}','_blank','noopener')"`:'');
 }
 
 /* ---- HOME ---- */
 async function loadHome(){
+  freshImg();
   document.getElementById('heroImg').src=IMG('1490481651871-ab68de25d43d');
   setPfp();
   const rail=document.getElementById('recRail');
   rail.innerHTML=Array(6).fill('<div class="pcard"><div class="ph skel"></div><div class="body"><div class="skel" style="height:12px;width:60%;margin-bottom:8px"></div><div class="skel" style="height:12px;width:40%"></div></div></div>').join('');
-  const recs=await getRecs(10);
+  const recs=(await getRecs(10)).slice(0,12);
   rail.innerHTML=recs.length?recs.map(recCard).join(''):'<div class="empty">Start the API to see your picks.</div>';
   renderTrust(recs);
-  try{
-    const t=await (await fetch(`${API}/trends`)).json();
-    document.getElementById('ttStrip').innerHTML=(t.trending||[]).slice(0,8).map(x=>`<div class="tt" onclick="go('explore');loadExplore('${x.product_type_name}')"><span class="n">${x.product_type_name}</span><span class="g">↑ ${Math.round((x.trend_score||0)*100)}% demand</span></div>`).join('')||'<div class="muted">—</div>';
-  }catch(e){document.getElementById('ttStrip').innerHTML='<div class="muted">Trend model offline.</div>'}
+  loadHomeTrending();
+  if(recs.length&&recs.some(p=>!p._img))setTimeout(()=>{if(pageOn('home'))rail.innerHTML=recs.map(recCard).join('')},3500);
 }
+function pageOn(p){const e=document.getElementById('page-'+p);return e&&e.classList.contains('on')}
 function renderTrust(recs){
   const s=recs[0]?.score??0.4;
   const styleM=Math.min(96,Math.round(56+(s>0?Math.min(40,s*1400):18)));
@@ -491,25 +723,164 @@ function renderTrust(recs){
     .map(([k,v])=>`<div class="r"><span class="k">${k}</span><span class="track"><span class="fill" style="width:${v}%"></span></span><span class="v">${v}</span></div>`).join('');
 }
 
+/* ---- TRENDS (persistent + festive-aware) ---- */
+let _trends=null;
+const TREND_RETAILERS=['Myntra','AJIO','Nykaa Fashion','H&M','Zara','Bershka','Urbanic','Virgio','Lulu & Sky','Littlebox','Snitch','Savana','Newme','Bonkers Corner','Lifestyle','JAM','FabIndia'];
+function q1(s){return String(s||'').replace(/'/g,"\\'")}
+function trendCard(t){
+  const kw=t.keyword,pct=t.pct_change||'';
+  const tags=(t.maps_to&&t.maps_to.tags||[]).slice(0,3).join(' · ');
+  const HUES=['#4867a8','#578a6a','#bd4557','#8f76bd','#cd8352','#3fb6b0','#c6a982','#d585a3'];
+  const s=seed(kw),ang=120+s%50,acc=TACC[s%TACC.length],hue=HUES[s%HUES.length];
+  return `<article class="trend-card" onclick="go('trends');shopTrend('${q1(kw)}')">
+    <div class="im" style="background:linear-gradient(${ang}deg,#211a38 0%,${hue} 150%);--tacc:${acc}">
+      <span class="tw">${esc(cap(kw))}</span></div>
+    <div class="b"><div class="tt">${cap(kw)} ${pct?`<em>↑ ${esc(pct)}</em>`:''}</div>
+      <div class="d">${tags?esc(tags):'Rising in fashion search right now.'}</div></div></article>`;
+}
+function festiveHtml(f){
+  if(!f)return '';
+  const away=f.days_away<=0?'happening now':`in ${f.days_away} day${f.days_away===1?'':'s'}`;
+  return `<div class="festive">
+    <div>
+      <div class="eyebrow">Festive edit · ${esc(away)}</div>
+      <h3>${esc(f.name)}</h3>
+      <p>${esc(f.blurb)}</p>
+      <div class="fk">${(f.keywords||[]).map(k=>`<button onclick="go('trends');shopTrend('${q1(k)}')">${esc(k)}</button>`).join('')}</div>
+    </div>
+    <div class="im festive-tile"><span class="fg">${esc(f.name)}</span></div>
+  </div>`;
+}
+async function loadHomeTrending(){
+  const fc=document.getElementById('festiveCard'),ht=document.getElementById('homeTrends');
+  ht.innerHTML=Array(8).fill('<div class="trend-card"><div class="im"><div class="skel" style="width:100%;height:100%"></div></div><div class="b"><div class="skel" style="height:12px;width:60%"></div></div></div>').join('');
+  try{
+    const t=await (await fetch(`${API}/catalog/trends`)).json();
+    _trends=t;
+    fc.innerHTML=festiveHtml(t.festive);
+    ht.innerHTML=(t.rising||[]).slice(0,8).map(trendCard).join('')||'<div class="empty">No trends right now.</div>';
+  }catch(e){fc.innerHTML='';ht.innerHTML='<div class="empty">Trend feed offline.</div>'}
+}
+async function loadTrends(){freshImg();
+  const fest=document.getElementById('trFestive'),chips=document.getElementById('trChips');
+  if(!_trends){
+    try{_trends=await (await fetch(`${API}/catalog/trends`)).json()}catch(e){_trends={rising:[],festive:null}}
+  }
+  fest.innerHTML=festiveHtml(_trends.festive);
+  const rising=_trends.rising||[];
+  chips.innerHTML=rising.map((t,i)=>`<button class="pill ${i===0?'on':''}" data-kw="${esc(t.keyword)}" onclick="shopTrend('${q1(t.keyword)}',this)">${cap(t.keyword)}</button>`).join('')||'<span class="muted">Trend feed offline.</span>';
+  document.getElementById('trRetailers').innerHTML=`<div class="eyebrow">Shopping across</div><div class="row">${TREND_RETAILERS.map(r=>`<span>${esc(r)}</span>`).join('')}</div>`;
+  if(rising.length)shopTrend(rising[0].keyword);
+  else{document.getElementById('trActiveName').textContent='';document.getElementById('trGrid').innerHTML='<div class="empty" style="grid-column:1/-1">Start the API to load trends.</div>'}
+}
+/* trend / shop imagery — a keyword-matched fashion photo per card.
+   Each trend maps to a search term that returns on-topic pictures. */
+const _KWSTOP=new Set(['the','and','with','for','set','pack','fit','rise','leg','style','women','womens','mens','new','look','wear','across','stores','picks','shop']);
+/* ethnic wear has no curated photo pool → use a keyword photo; single ethnic
+   words ("saree", "lehenga") return on-topic results. Everything else uses the
+   curated editorial pool (clean, on-category). */
+const _ETH_TAG={saree:'saree',lehenga:'lehenga',sherwani:'sherwani',anarkali:'anarkali',dupatta:'dupatta',
+  kurta:'kurta',chikankari:'kurta',bandhani:'kurta',juttis:'juttis',bandhgala:'blazer',potli:'clutch',
+  'kasavu saree':'saree','organza saree':'saree','zari border cotton saree':'saree','banarasi dupatta':'dupatta',
+  'off-white kurta':'kurta','gold border':'saree','sequin lehenga':'lehenga','indo western':'gown','indo western dress':'gown'};
+function ethTag(p){
+  const s=((p.search_query||'')+' '+(p.title||'')+' '+(p.tags||[]).join(' ')).toLowerCase();
+  for(const k in _ETH_TAG){if(s.includes(k))return _ETH_TAG[k]}
+  return null;
+}
+function trendImg(p){
+  const e=ethTag(p);
+  if(e)return `https://loremflickr.com/520/640/${encodeURIComponent(e)},fashion?lock=${seed(p.id||p.title||e)%997}`;
+  return catImg(p.product_type||(p.tags||[]).slice(-1)[0]||'fashion',p.id||p.title||'x');
+}
+function flickrImg(p){return trendImg(p)}
+function shopCard(p){
+  const ty=p.product_type||'Apparel',nm=p.title||ty,ret=p.retailer||p.source||'Shop';
+  const price=p.price_min!=null
+    ?`<b>₹${Math.round(p.price_min).toLocaleString('en-IN')}</b>${p.price_is_estimate?' <span class="off">est.</span>':''}`
+    :'<span style="font-weight:700;font-size:11px;opacity:.8">See price on site</span>';
+  const open=`onclick="window.open('${esc(p.buy_url||'#')}','_blank','noopener')"`;
+  const save=`<button class="save" onclick="event.stopPropagation();toggleWl('${esc(p.id||nm)}',null);toast('Saved to your board')">Save</button>`;
+  if(p.image){                         // real Google-Shopping product — real photo
+    return `<article class="pcard pin" ${open}>
+      <div class="ph">
+        <img class="shot" loading="lazy" src="${esc(p.image)}" alt="${esc(nm)}" onerror="this.closest('.ph').classList.add('noimg')">
+        ${save}
+        <div class="pincap"><div class="r">${esc(ret)}</div><div class="n">${esc(nm)}</div><div class="p">${price}</div></div>
+      </div></article>`;
+  }
+  // curated retailer-search link — branded tile, not a stock photo
+  const s=seed(p.id||nm),ang=125+s%48,acc=TACC[s%TACC.length],col=p.colour||'';
+  return `<article class="pcard tilecard" ${open}>
+    <div class="ph"><div class="tile" style="background:linear-gradient(${ang}deg,#211a38 2%,${tileBase(col)} 132%);--tacc:${acc}">
+      <div class="glow"></div><div class="ghost">${esc((nm[0]||'V').toUpperCase())}</div>
+      <div class="cat">${esc(ret)}${col?' · '+esc(cap(col)):''}</div>
+      <div class="bot"><div class="nm">${esc(nm)}</div><div class="prc">${price}</div>
+        <div class="rz">Browse this at ${esc(ret)}</div></div>${VMK}
+    </div>${save}</div></article>`;
+}
+/* "how to style it" — Pinterest-style outfit board for the active trend */
+async function loadStyleBoard(kw){
+  const el=document.getElementById('trStyle');if(!el)return;
+  el.innerHTML='';
+  try{
+    const d=await (await fetch(`${API}/catalog/outfit?trend=${encodeURIComponent(kw)}`)).json();
+    const look=(d.look||[]).filter(x=>x&&x.title);
+    if(look.length<2)return;
+    const tot=d.estimated_total||{};
+    const SLOT={'one-piece':'The piece','top':'Top','bottom':'Bottom','layer':'Layer','shoes':'Shoes','accessory':'Finish with'};
+    const shorten=s=>{s=niceName(s,'').split(/[|,(/]|\s[-–]\s/)[0].replace(/\s+(XS|S|M|L|XL|XXL|2XS|2XL|3XL|Onesize|One Size)\b.*$/i,'').trim();return s.length>36?s.slice(0,34).trim()+'…':s};
+    const pieces=look.map(x=>`<div class="look" onclick="window.open('${esc(x.buy_url||'#')}','_blank','noopener')">
+      <div class="im"><img loading="lazy" src="${esc(x.image||trendImg(x))}" alt="${esc(x.slot)}">
+        <span class="slot">${esc(SLOT[x.slot]||x.slot||'')}</span></div>
+      <div class="t">${esc(shorten(x.title))}</div>
+      <div class="pr">${esc(x.retailer||'')}${x.price_min!=null?` · ₹${Math.round(x.price_min).toLocaleString('en-IN')}`:''}</div>
+    </div>`).join('');
+    const slots=look.map(x=>x.slot);
+    const anchor=slots.includes('one-piece')?`the ${cap(kw)}`:'the '+cap(kw)+' bottoms';
+    const why=`Build the look around ${anchor}, then keep everything else in one colour family so it reads deliberate — one statement piece, the rest quiet. Swap the shoes to shift it from day to evening.`;
+    const price=tot.min?(tot.min===tot.max?`approx ₹${Number(tot.min).toLocaleString('en-IN')}`:`approx ₹${Number(tot.min).toLocaleString('en-IN')}–₹${Number(tot.max).toLocaleString('en-IN')}`)+' for the full look':'a full look';
+    el.innerHTML=`<div class="styleboard">
+      <div class="sh"><b>How to style it</b><span>${price}</span></div>
+      <div class="strip">${pieces}</div>
+      <div class="why"><b>Why this works — </b>${esc(why)}</div>
+    </div>`;
+  }catch(e){/* board is optional */}
+}
+async function shopTrend(kw,el){freshImg();
+  if(el){document.querySelectorAll('#trChips .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');}
+  else{document.querySelectorAll('#trChips .pill').forEach(p=>p.classList.toggle('on',p.dataset.kw===kw));}
+  const g=document.getElementById('trGrid');
+  g.innerHTML=Array(10).fill('<div class="pcard"><div class="ph skel"></div><div class="body"><div class="skel" style="height:12px"></div></div></div>').join('');
+  loadStyleBoard(kw);
+  try{
+    const d=await (await fetch(`${API}/catalog/shop?trend=${encodeURIComponent(kw)}&n=80`)).json();
+    const rows=(d.products||[]);
+    document.getElementById('trActiveName').textContent=`Shop ${cap(kw)}${rows.length?` · ${rows.length} picks across ${new Set(rows.map(p=>p.retailer||p.source)).size} stores`:''}`;
+    g.innerHTML=rows.map(shopCard).join('')||'<div class="empty" style="grid-column:1/-1">No products mapped for this trend yet.</div>';
+  }catch(e){document.getElementById('trActiveName').textContent=cap(kw);g.innerHTML='<div class="empty" style="grid-column:1/-1">Start the API.</div>'}
+}
+
 /* ---- FOR YOU ---- */
-async function loadForYou(){
+async function loadForYou(){freshImg();
   const g=document.getElementById('fyGrid');
   g.innerHTML=Array(10).fill('<div class="pcard"><div class="ph skel"></div><div class="body"><div class="skel" style="height:12px"></div></div></div>').join('');
-  const recs=await getRecs(24);
-  document.getElementById('fyMeta').textContent=recs.length?`${recs.length} ranked items · tap for the SHAP reasons`:'Start the API to see your feed.';
+  const recs=(await getRecs(12)).slice(0,12);
+  document.getElementById('fyMeta').textContent=recs.length?`${recs.length} picks · tap any to see why`:'Start the API to see your feed.';
   g.innerHTML=recs.length?recs.map(recCard).join(''):'<div class="empty" style="grid-column:1/-1">No feed yet.</div>';
+  if(recs.length&&recs.some(p=>!p._img))setTimeout(()=>{if(pageOn('foryou'))g.innerHTML=recs.map(recCard).join('')},3500);
 }
 
 /* ---- EXPLAIN drawer + page ---- */
 async function openExplain(p){
   const dw=document.getElementById('drawer'),bg=document.getElementById('drawerBg');
   const ty=p.product_type_name||'Apparel';
-  dw.innerHTML=`<div class="dh"><div><div class="eyebrow">Why this pick</div><h3 style="font-size:20px;margin-top:6px">${esc(p.product_name||ty)}</h3><div class="muted" style="font-size:13px">H&amp;M · ${esc(ty)} · ${inr(p.avg_price??p.price)}</div></div>
+  dw.innerHTML=`<div class="dh"><div><div class="eyebrow">Why this pick</div><h3 style="font-size:20px;margin-top:6px">${esc(niceName(p.product_name,ty))}</h3><div class="muted" style="font-size:13px">${brandTag(ty)} · ${inr(p.avg_price??p.price)}</div></div>
     <button class="dclose" onclick="closeDrawer()">✕</button></div>
-    <div class="dimg">${imgTag(p.article_id,ty,p.article_id)}</div>
-    <div class="eyebrow" style="margin-bottom:6px">Top reasons (SHAP)</div>
+    <div class="dimg"><img src="${catImg(ty,p.article_id||p.product_name)}" alt="${esc(ty)}" style="width:100%;height:100%;object-fit:cover"></div>
+    <div class="eyebrow" style="margin-bottom:6px">Why this is a match</div>
     <div id="drReasons"><div class="muted" style="font-size:13px;padding:10px 0">Loading…</div></div>
-    <div class="note" style="margin-top:16px">Reasons are the three features with the largest SHAP contribution for this user–item pair, from the cached explanation table. ↑ = pushed the score up.</div>`;
+    <div class="note" style="margin-top:16px">The main things that made this a pick for you. ↑ made it more likely.</div>`;
   bg.classList.add('on');dw.classList.add('on');
   let reasons=(p.reasons||[]).filter(Boolean);
   if(reasons.length<2){
@@ -518,29 +889,27 @@ async function openExplain(p){
   document.getElementById('drReasons').innerHTML=reasons.length?reasons.map(r=>{
     const up=!r.trim().startsWith('↓');const t=r.replace(/^[↑↓]\s*/,'');
     return `<div class="reason-row"><span class="dir ${up?'up':'down'}">${up?'↑':'↓'}</span><span class="txt">${esc(t)}</span></div>`;
-  }).join(''):'<div class="muted" style="font-size:13px">No cached explanation for this pair — it is a fresh candidate.</div>';
+  }).join(''):'<div class="muted" style="font-size:13px">This is a fresh pick, so there\'s no detailed breakdown yet.</div>';
 }
 function closeDrawer(){document.getElementById('drawer').classList.remove('on');document.getElementById('drawerBg').classList.remove('on')}
-async function loadExplainPage(){
-  const recs=await getRecs(8);
-  document.getElementById('exPick').innerHTML=recs.slice(0,6).map(recCard).join('')||'<div class="empty" style="grid-column:1/-1">No recommendations.</div>';
-  const m=await getMetrics();const shap=(m.model_card||{}).shap_global_importance||[];
-  const mx=Math.max(...shap.map(s=>s.value),0.001);
-  document.getElementById('exShap').innerHTML=shap.map(s=>`<div class="bar"><div class="lb"><span>${s.feature}</span><b>${s.value.toFixed(3)}</b></div><div class="track"><div class="fill" style="width:${s.value/mx*100}%"></div></div></div>`).join('');
-}
 
 /* ---- EXPLORE ---- */
 const FILT=['All','Trousers','Dress','Sweater','T-shirt','Top','Blouse','Jacket','Shorts','Skirt','Shirt'];
-async function loadExplore(tag,q){
+async function loadExplore(tag,q){freshImg();
   document.getElementById('exFilters').innerHTML=FILT.map(f=>`<button class="pill ${(!tag&&f==='All')||tag===f?'on':''}" onclick="loadExplore('${f}')">${f}</button>`).join('');
   const g=document.getElementById('exGrid');
   g.innerHTML=Array(10).fill('<div class="pcard"><div class="ph skel"></div><div class="body"><div class="skel" style="height:12px"></div></div></div>').join('');
-  let u=`${API}/products?page_size=24`;
+  let u=`${API}/products?page_size=120`;
   if(q)u+=`&q=${encodeURIComponent(q)}`;
   else if(tag&&tag!=='All')u+=`&category=${encodeURIComponent(tag)}`;
   try{
     const d=await (await fetch(u)).json();
-    g.innerHTML=(d.products||[]).map(catCard).join('')||'<div class="empty" style="grid-column:1/-1">Nothing here.</div>';
+    const seen=new Set(),rows=(d.products||[]).filter(p=>{
+      if(!presentable(p))return false;
+      const k=((p.product_name||'').toLowerCase().replace(/\s*\(\d+\)\s*$/,'').trim())||p.article_id;
+      if(seen.has(k))return false;seen.add(k);return true}).slice(0,48);
+    try{await enrichPhotos(rows)}catch(e){}
+    g.innerHTML=rows.map(catCard).join('')||'<div class="empty" style="grid-column:1/-1">Nothing here.</div>';
   }catch(e){g.innerHTML='<div class="empty" style="grid-column:1/-1">Start the API.</div>'}
 }
 
@@ -556,32 +925,29 @@ async function loadDash(){
   const m=await getMetrics();
   const held=m.held_out||[];const full=held.find(x=>/pipeline/i.test(x.model))||held[held.length-1]||{};
   const mc=m.model_card||{};
-  document.getElementById('heldCap').textContent=`${mc.reranker?.test_users||'—'} users never seen in training · window ${mc.training_window?.train||''}`;
-  document.getElementById('kpiHeld').innerHTML=[['Recall@10',full['recall@10']],['NDCG@10',full['ndcg@10']],['MAP@12',full['map@12']]]
-    .map(([k,v])=>`<div class="k"><div class="lb">${k}</div><div class="val">${v!=null?(+v).toFixed(4):'—'}</div></div>`).join('');
+  document.getElementById('heldCap').textContent=`Tested on ${mc.reranker?.test_users?(+mc.reranker.test_users).toLocaleString():'—'} shoppers never used in setup`;
+  document.getElementById('kpiHeld').innerHTML=[['In the top 10',full['recall@10']],['Right order',full['ndcg@10']],['Overall',full['map@12']]]
+    .map(([k,v])=>`<div class="k"><div class="lb">${k}</div><div class="val">${v!=null?(+v*100).toFixed(1)+'%':'—'}</div></div>`).join('');
   const pc=m.paired_comparison||{};
-  document.getElementById('pairedCap').textContent=`${pc.n_users||0} paired users · McNemar exact + bootstrap CI`;
-  document.getElementById('pairedBars').innerHTML=[['ALS',pc.ctr_a],['Re-ranked',pc.ctr_b]]
-    .map(([n,v],i)=>`<div class="mbar ${i?'':'win'}"><span class="nm">${n}</span><span class="track"><span class="fill" style="width:${Math.min(100,(v||0)/0.09*100)}%"></span></span><span class="val">${v!=null?(+v).toFixed(3):'—'}</span></div>`).join('');
-  document.getElementById('pairedNote').textContent=`Difference ${pc.abs_diff>=0?'+':''}${pc.abs_diff} · McNemar p=${pc.p_value} (${pc.significant?'significant':'not significant'}) · 95% CI [${pc.ci_lo}, ${pc.ci_hi}].`;
+  document.getElementById('pairedCap').textContent=`${pc.n_users?(+pc.n_users).toLocaleString():0} shoppers, tested head-to-head`;
+  document.getElementById('pairedBars').innerHTML=[['Basic picks',pc.ctr_a],['Personalised',pc.ctr_b]]
+    .map(([n,v],i)=>`<div class="mbar ${i?'win':''}"><span class="nm">${n}</span><span class="track"><span class="fill" style="width:${Math.min(100,(v||0)/0.09*100)}%"></span></span><span class="val">${v!=null?(+v*100).toFixed(1)+'%':'—'}</span></div>`).join('');
+  const lift=(pc.ctr_a&&pc.ctr_b)?Math.round((pc.ctr_b-pc.ctr_a)/pc.ctr_a*100):null;
+  document.getElementById('pairedNote').textContent = lift!=null
+    ? `Personalising the order lifted the hit rate by about ${lift}%${pc.significant?' — a real, repeatable gain.':', though within normal variation.'}`
+    : '';
   const mx=Math.max(...held.map(x=>x['recall@10']||0),0.001);
   document.getElementById('modelBars').innerHTML=held.map(x=>{
-    const nm=/pop/i.test(x.model)?'Popularity':/als/i.test(x.model)?'ALS':'Re-ranked';
-    return `<div class="mbar ${nm==='Re-ranked'?'win':''}"><span class="nm">${nm}</span><span class="track"><span class="fill" style="width:${(x['recall@10']||0)/mx*100}%"></span></span><span class="val">${(+x['recall@10']).toFixed(4)}</span></div>`;
+    const nm=/pop/i.test(x.model)?'Most popular':/als/i.test(x.model)?'Basic match':'Personalised';
+    return `<div class="mbar ${nm==='Personalised'?'win':''}"><span class="nm">${nm}</span><span class="track"><span class="fill" style="width:${(x['recall@10']||0)/mx*100}%"></span></span><span class="val">${(+x['recall@10']*100).toFixed(1)}%</span></div>`;
   }).join('');
-  const cr=mc.candidate_recall;
-  document.getElementById('ceilNote').textContent = cr
-    ? `Retrieval ceiling: ALS puts ${(cr.value*100).toFixed(1)}% of held-out ground-truth items into the top ${cr.at} candidates. The re-ranker only re-orders those — it cannot recommend an item ALS never retrieved, which is why its top-12 hit-rate barely moves.`
-    : '';
+  document.getElementById('ceilNote').textContent = 'Vibezz first shortlists items it thinks you\'ll like, then puts the best of those first. It can only rank what makes the shortlist, so the headline numbers stay modest — but personalising the order still helps.';
   const shap=mc.shap_global_importance||[];const smx=Math.max(...shap.map(s=>s.value),0.001);
-  document.getElementById('shapBars').innerHTML=shap.map(s=>`<div class="bar"><div class="lb"><span>${s.feature}</span><b>${s.value.toFixed(3)}</b></div><div class="track"><div class="fill" style="width:${s.value/smx*100}%"></div></div></div>`).join('');
+  document.getElementById('shapBars').innerHTML=shap.map(s=>`<div class="bar"><div class="lb"><span>${esc(niceFeature(s.feature))}</span></div><div class="track"><div class="fill" style="width:${s.value/smx*100}%"></div></div></div>`).join('');
   const tf=mc.trend_forecast||{};
-  document.getElementById('kpiTrend').innerHTML=[['MAPE',tf.mape_pct!=null?tf.mape_pct+'%':'—'],['MAE',tf.mae!=null?(+tf.mae).toFixed(0):'—'],['Weeks',tf.weeks||'—']]
+  document.getElementById('kpiTrend').innerHTML=[['Typical error',tf.mape_pct!=null?tf.mape_pct+'%':'—'],['Weeks of data',tf.weeks||'—']]
     .map(([k,v])=>`<div class="k"><div class="lb">${k}</div><div class="val">${v}</div></div>`).join('');
-  document.getElementById('trendNote').textContent=`${tf.target||'weekly demand'} · lag + rolling + seasonality features. Feeds the "Trending this week" ranking signal.`;
-  const im=mc.interaction_matrix||{};
-  document.getElementById('pipeMeta').textContent=`Interaction matrix ${im.users?im.users.toLocaleString():'?'} × ${im.items?im.items.toLocaleString():'?'} · density ${im.density_pct??'?'}% · ${mc.window_transactions?(mc.window_transactions/1e6).toFixed(1)+'M window transactions':''}`;
-  document.getElementById('pipeSteps').innerHTML=(mc.pipeline||['ETL','ALS','Re-rank','Explain','Forecast','RAG']).map((s,i,a)=>`<span class="step">${s}</span>${i<a.length-1?'<span class="arw">→</span>':''}`).join('');
+  document.getElementById('trendNote').textContent='Forecasts how much each category will sell next week, which feeds the "Trending this week" boost on your picks.';
 }
 let authMode='login';
 function toggleAuth(){authMode=authMode==='login'?'signup':'login';document.getElementById('acName').hidden=authMode==='login';document.getElementById('acBtn').textContent=authMode==='login'?'Log in':'Sign up';document.getElementById('acTog').textContent=authMode==='login'?'New here? Create an account':'Have an account? Log in'}
@@ -606,22 +972,44 @@ function toggleWl(aid,el){
 }
 
 function renderChat(){const l=document.getElementById('chatLog');if(!chatHistory.length)l.innerHTML='<div class="bub a">Hi! Ask for picks by occasion, or why an item was recommended.</div>'}
+function mdLite(s){
+  s=esc(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+    .replace(/^\s*[*\-]\s+/gm,'• ');
+  return s.replace(/\n/g,'<br>');
+}
+function chatMiniCard(p){
+  const nm=niceName(p.product_name,p.product_type_name);
+  const cat=catImg(p.product_type_name,p.article_id||nm);
+  const bits=[p.colour_group_name&&cap(p.colour_group_name),p.price_inr&&('₹'+Number(p.price_inr).toLocaleString('en-IN'))].filter(Boolean).join(' · ');
+  return `<a class="chat-pin" href="${esc(p.shop_url||'#')}" target="_blank" rel="noopener">
+    <div class="im"><img loading="lazy" src="${esc(p._img||cat)}" onerror="this.onerror=null;this.src='${cat}'" alt="${esc(nm)}"></div>
+    <div class="t">${esc(nm)}</div><div class="pr">${esc(bits)}</div></a>`;
+}
+async function chatPins(el,prods){
+  el.innerHTML=prods.map(chatMiniCard).join('');
+  try{await enrichPhotos(prods);el.innerHTML=prods.map(chatMiniCard).join('')}catch(e){}
+}
 async function sendChat(){
   const inp=document.getElementById('chatIn'),msg=inp.value.trim();if(!msg)return;inp.value='';
   const l=document.getElementById('chatLog');l.insertAdjacentHTML('beforeend',`<div class="bub u">${esc(msg)}</div>`);
   const a=document.createElement('div');a.className='bub a';a.textContent='…';l.appendChild(a);l.scrollTop=l.scrollHeight;
   try{
     const r=await fetch(`${API}/chat/stream`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,customer_id:user?.customer_id||'guest',history:chatHistory})});
-    const rd=r.body.getReader(),dec=new TextDecoder();let full='';a.textContent='';
+    const rd=r.body.getReader(),dec=new TextDecoder();let full='',buf='';
     while(true){const{done,value}=await rd.read();if(done)break;
-      dec.decode(value,{stream:true}).split('\n\n').forEach(ln=>{if(!ln.startsWith('data:'))return;
+      buf+=dec.decode(value,{stream:true});const parts=buf.split('\n\n');buf=parts.pop();
+      parts.forEach(ln=>{if(!ln.startsWith('data:'))return;
         try{const j=JSON.parse(ln.slice(5));
           if(j.tool_call){const t=document.createElement('div');t.className='bub tool';t.textContent='✦ '+j.tool_call;l.insertBefore(t,a)}
+          if(j.products&&j.products.length){const s=document.createElement('div');s.className='chat-prods';l.insertBefore(s,a);chatPins(s,j.products)}
           if(j.token){full+=j.token;a.textContent=full}}catch(_){}
       });l.scrollTop=l.scrollHeight;
     }
+    if(full)a.innerHTML=mdLite(full);
     chatHistory.push({role:'user',content:msg},{role:'model',content:full});
-    document.getElementById('chatMode').textContent=full.includes('Demo mode')?'Demo mode — set OPENROUTER_API_KEY for live replies.':'';
+    document.getElementById('chatMode').textContent=full.includes('Demo mode')?'The stylist is offline right now — showing sample replies.':'';
   }catch(e){a.textContent='Could not reach the stylist. Is the API running?'}
 }
 

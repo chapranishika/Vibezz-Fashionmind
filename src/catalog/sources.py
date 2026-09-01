@@ -298,15 +298,16 @@ def active_sources() -> list[ProductSource]:
 
 def aggregate_search(query=None, product_types=None, tags=None, colours=None,
                      limit=24, sources: Optional[list[str]] = None) -> list[Product]:
-    """Merge results across sources, curated + live first, dedupe by (title, retailer)."""
+    """Merge results across sources. Live Google-Shopping products (real photos,
+    real prices) lead; curated retailer-search links fill the tail."""
     seen, merged = set(), []
-    order = {"curated": 0, "serpapi": 1, "hm-demo": 2}
+    order = {"serpapi": 0, "curated": 1, "hm-demo": 2}
     srcs = sorted(active_sources(), key=lambda s: order.get(s.name, 9))
     if sources:
         srcs = [s for s in srcs if s.name in sources]
-    # SerpApi is the deep well of live inventory — let it return most of the set;
-    # curated leads for on-brand picks, hm-demo only fills the tail.
-    quota = {"serpapi": limit, "curated": max(6, limit // 2), "hm-demo": max(3, limit // 4)}
+    # SerpApi first and as deep as it goes (real product imagery); curated only
+    # fills whatever slots are left; hm-demo is a last resort.
+    quota = {"serpapi": limit, "curated": limit, "hm-demo": max(3, limit // 4)}
     for s in srcs:
         try:
             rows = s.search(query=query, product_types=product_types, tags=tags,
