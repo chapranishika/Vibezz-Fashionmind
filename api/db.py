@@ -7,20 +7,45 @@ URL     : https://cxfsiotzfshrjdrctmge.supabase.co
 Uses supabase-py (service-role key) for all server-side writes.
 Anon key is exposed to the frontend only.
 """
+import base64
+import json
 import os
+import warnings
 from functools import lru_cache
 from supabase import create_client, Client
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://cxfsiotzfshrjdrctmge.supabase.co")
 
+
+def _jwt_role(token: str) -> str | None:
+    """Best-effort read of the `role` claim from a Supabase JWT (no verification)."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload)).get("role")
+    except Exception:
+        return None
+
+
 @lru_cache(maxsize=1)
 def get_db() -> Client:
-    """Return a cached Supabase client using the service-role key."""
+    """Return a cached Supabase client using the service-role key.
+
+    RLS is locked to service_role only (migration 002), so an anon key here
+    means every DB write silently fails. Warn loudly rather than debug it later.
+    """
     key = os.getenv("SUPABASE_SERVICE_KEY")
     if not key:
         raise RuntimeError(
             "SUPABASE_SERVICE_KEY not set. "
-            "Get it from Supabase dashboard → Settings → API → service_role key."
+            "Get it from Supabase dashboard → Project Settings → API → service_role (secret)."
+        )
+    role = _jwt_role(key)
+    if role and role != "service_role":
+        warnings.warn(
+            f"SUPABASE_SERVICE_KEY has role='{role}', expected 'service_role'. "
+            "After migration 002 this key cannot read or write any table.",
+            RuntimeWarning, stacklevel=2,
         )
     return create_client(SUPABASE_URL, key)
 
