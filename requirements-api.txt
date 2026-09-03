@@ -1,0 +1,34 @@
+# Runtime-only dependencies for the API service (api.main:app).
+#
+# api.main and everything it imports does NOT use torch / transformers /
+# sentence-transformers / matplotlib / seaborn / plotly — those belong to the
+# offline pipeline (vision, training, notebooks) and live in requirements.txt.
+# Keeping them out of the serving image takes it from ~13 GB to ~2 GB.
+#
+#   docker build  ->  installs this file
+#   full pipeline ->  pip install -r requirements.txt
+
+pandas>=2.0.0
+numpy>=1.26.0
+pyarrow>=14.0.0
+
+scikit-learn>=1.4.0
+lightgbm>=4.3.0
+implicit>=0.7.2
+faiss-cpu>=1.7.4
+shap>=0.44.0
+scipy>=1.11.0
+
+google-genai>=2.0.0
+pytrends>=4.9.2
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+slowapi>=0.1.9
+supabase>=2.4.0
+
+bcrypt>=4.1.0
+PyJWT>=2.8.0
+requests>=2.31.0

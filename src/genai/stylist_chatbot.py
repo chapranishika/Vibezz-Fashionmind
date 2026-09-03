@@ -461,13 +461,17 @@ def build_trend_outfit(keyword: str, budget_max: float = None) -> dict:
 
     used: set = set()
 
-    def take(slot, query, kinds, strict=True, want_trend=False):
-        rows = aggregate_search(query=query, product_types=list(kinds), tags=m["tags"] or None, limit=24)
+    def _filter(rows):
         rows = [r for r in rows if (r.get("gender") or "women") in (gender, "unisex")
                 and _gender_ok(r.get("title", ""))]
         if budget_max:
             rows = [r for r in rows
                     if (r.get("price_min") or 0) <= budget_max or r.get("price_min") is None]
+        return rows
+
+    def take(slot, query, kinds, strict=True, want_trend=False, neutral=False):
+        rows = _filter(aggregate_search(query=query, product_types=list(kinds),
+                                        tags=m["tags"] or None, limit=24))
 
         def _trend_hit(r):
             t = (r.get("title", "") or "").lower()
@@ -489,11 +493,21 @@ def build_trend_outfit(keyword: str, budget_max: float = None) -> dict:
             for r in rows:
                 if r.get("id") not in used and ok(r):
                     used.add(r.get("id")); return r
-        if strict:
-            return None
-        for r in rows:
-            if r.get("id") not in used and _clean_title(r.get("title", "")):
-                used.add(r.get("id")); return r
+        if not strict:
+            for r in rows:
+                if r.get("id") not in used and _clean_title(r.get("title", "")):
+                    used.add(r.get("id")); return r
+        if neutral:
+            # last resort: trust the structured product_type, ignore the title
+            # gate — keeps the look complete when search returns little (offline,
+            # or an obscure trend). Prefers an in-kind item, then anything.
+            pool = _filter(aggregate_search(product_types=list(kinds), limit=20)) + rows
+            for want_kind in (True, False):
+                for r in pool:
+                    if r.get("id") in used:
+                        continue
+                    if not want_kind or r.get("product_type") in kinds:
+                        used.add(r.get("id")); return r
         return None
 
     mapped = set(m["product_types"] or [])
@@ -514,19 +528,19 @@ def build_trend_outfit(keyword: str, budget_max: float = None) -> dict:
             if l: look.append({"slot": "layer", **l})
         t = (take("top", keyword, TOP, want_trend=True) if top_led
              else take("top", f"{gender} plain top", TOP, strict=False)) \
-            or take("top", f"{gender} basic top", TOP, strict=False)
+            or take("top", f"{gender} basic top", TOP, strict=False, neutral=True)
         if t: look.append({"slot": "top", **t})
         b = (take("bottom", keyword, BOTTOM, want_trend=True) if bottom_led
              else take("bottom", f"{gender} wide leg trousers", BOTTOM)) \
-            or take("bottom", f"{gender} trousers", BOTTOM, strict=False)
+            or take("bottom", f"{gender} trousers", BOTTOM, strict=False, neutral=True)
         if b: look.append({"slot": "bottom", **b})
 
     s = (take("shoes", f"{keyword} shoes", SHOE)
          or take("shoes", f"{gender} ballet flats", SHOE)
-         or take("shoes", f"{gender} white sneakers", SHOE, strict=False))
+         or take("shoes", f"{gender} white sneakers", SHOE, strict=False, neutral=True))
     if s: look.append({"slot": "shoes", **s})
     a = (take("accessory", f"{gender} shoulder bag", ACC)
-         or take("accessory", f"{gender} tote bag", ACC, strict=False))
+         or take("accessory", f"{gender} tote bag", ACC, strict=False, neutral=True))
     if a: look.append({"slot": "accessory", **a})
 
     total_lo = total_hi = 0

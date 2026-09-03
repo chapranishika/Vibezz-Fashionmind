@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *"   # daily prod smoke — catches drift / a sleeping Space
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: unit + contract tests (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements-api.txt -r requirements-dev.txt
+      - run: pytest -q
+        # conftest.py patches model loading + forces demo mode, so no artifacts
+        # or API keys are needed here.
+
+  smoke:
+    name: live prod smoke
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/smoke_prod.py
+        env:
+          # override to point at a different deployment
+          PROD_API_URL: https://nishika1202-vibezz-fashionmind-api.hf.space

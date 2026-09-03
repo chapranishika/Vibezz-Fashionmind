@@ -1,0 +1,8 @@
+# Git-LFS patterns for the Hugging Face Space (the trained artifacts are pushed
+# there by deploy/hf_space_sync.py; they are git-ignored in this GitHub repo).
+*.pkl   filter=lfs diff=lfs merge=lfs -text
+*.npy   filter=lfs diff=lfs merge=lfs -text
+*.npz   filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text
+*.index filter=lfs diff=lfs merge=lfs -text
+*.bin   filter=lfs diff=lfs merge=lfs -text

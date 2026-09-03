@@ -140,6 +140,33 @@ Copy `.env.example` → `.env`. Everything has a safe default:
 `pytest -q` — 44 tests: ranking metrics, cold-start logic, API contract,
 auth + cart flow. Runs offline in ~1 s with tiny fixtures; no dataset needed.
 
+`python scripts/smoke_prod.py` — end-to-end check against a running deployment
+(`PROD_API_URL` env, defaults to the live Space): models loaded, `/recommend`
+priced in ₹, chat live (not demo) and returning the right garment category.
+CI (`.github/workflows/ci.yml`) runs the unit suite on every push and the smoke
+test on `main` + daily.
+
+---
+
+## Deploy
+
+Frontend → **Vercel** (static, `vercel.json` rewrites to `/frontend`).
+Backend → **Hugging Face Space** (Docker SDK, `Dockerfile` + `requirements-api.txt`,
+port 7860). The API image deliberately omits the pipeline's torch/transformers
+stack — nothing under `api.main` imports it (~13 GB → ~2 GB).
+
+The trained artifacts (`models/`, `data/features/`, ~1 GB) are **git-ignored** —
+too big for GitHub and they'd bloat every clone. They ship straight to the Space
+via LFS:
+
+```
+set HF_TOKEN=hf_xxx            # write token for the Space owner
+python deploy/hf_space_sync.py   # code + secrets (from .env) + models + features + restart
+```
+
+A GitHub-only sync would boot a container with zero models loaded — always run
+the script, or check `/health` shows `models_loaded > 0` after any deploy.
+
 ---
 
 ## Dataset

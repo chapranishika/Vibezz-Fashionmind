@@ -1,4 +1,6 @@
-# Core data
+# Full pipeline deps (ETL, training, vision, notebooks). The API service only
+# needs the subset in requirements-api.txt — the Docker image installs that one.
+#
 # NOTE: the Phase-1 ETL (src/ingestion/etl.py) runs on pandas, not PySpark, so
 # pyspark is intentionally not a dependency. Add it back only if you restore a
 # Spark ETL path.
