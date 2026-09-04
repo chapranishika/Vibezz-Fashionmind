@@ -29,7 +29,10 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = REPO_DIR / ".env"
 SPACE = os.environ.get("HF_SPACE_REPO", "Nishika1202/vibezz-fashionmind-api")
-SPACE_URL = os.environ.get("PROD_API_URL", f"https://{SPACE.split('/')[-1].lower()}.hf.space")
+# HF Space subdomains are "{owner}-{space}.hf.space", not just "{space}" --
+# dropping the owner here made an earlier version of this script poll a host
+# that doesn't exist and "time out" for 7.5 minutes on an already-healthy Space.
+SPACE_URL = os.environ.get("PROD_API_URL", f"https://{SPACE.replace('/', '-').lower()}.hf.space")
 
 
 def _post_json(url, body, headers=None, timeout=30):
@@ -134,6 +137,7 @@ def main():
     ap.add_argument("--full-smoke", action="store_true", help="run scripts/smoke_prod.py with SMOKE_FULL=1 at the end")
     args = ap.parse_args()
 
+    print(f"target Space: {SPACE}  ({SPACE_URL})")
     print(f">> validating {args.key}")
     validator = VALIDATORS.get(args.key)
     if args.skip_validate or not validator:
