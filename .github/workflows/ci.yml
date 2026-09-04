@@ -37,5 +37,10 @@ jobs:
           python-version: "3.11"
       - run: python scripts/smoke_prod.py
         env:
-          # override to point at a different deployment
           PROD_API_URL: https://nishika1202-vibezz-fashionmind-api.hf.space
+          # Full check (POST /recommend + /chat) writes to Supabase and spends a
+          # real OpenRouter call — only worth it right after an actual deploy.
+          # The daily cron runs cheap-only (health/products/photos): it exists
+          # to catch the Space sleeping or drifting, not to re-verify every push.
+          SMOKE_FULL: ${{ github.event_name == 'push' && '1' || '0' }}
+          SMOKE_CUSTOMER_ID: smoke-test-ci

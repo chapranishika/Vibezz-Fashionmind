@@ -2,12 +2,27 @@
 """
 End-to-end smoke test against a running API (local or production).
 
-    python scripts/smoke_prod.py
+    python scripts/smoke_prod.py              # cheap checks only: no DB writes,
+                                               # no LLM spend. Safe to run anytime.
+    SMOKE_FULL=1 python scripts/smoke_prod.py  # + /recommend and /chat: writes a
+                                               # row to `recommendations` /
+                                               # `chat_messages` and spends a real
+                                               # OpenRouter call. Reserve this for
+                                               # an actual deploy, not a daily cron.
+
     PROD_API_URL=http://127.0.0.1:8000 python scripts/smoke_prod.py
 
 Exits non-zero if any hard check fails. Soft checks (marked WARN) don't fail the
 run — they cover things that legitimately degrade, like the SerpApi free-tier
 quota being exhausted.
+
+Any row this writes uses SMOKE_CUSTOMER_ID (default "smoke-test-ci"), never
+"guest" — that id is real shared traffic and its rows shouldn't be mixed with
+synthetic test data. Purge smoke rows periodically:
+    delete from recommendations where customer_id = 'smoke-test-ci';
+    delete from chat_sessions   where customer_id = 'smoke-test-ci';
+    -- chat_messages cascades from chat_sessions if FKs are ON DELETE CASCADE;
+    -- otherwise delete by session_id first.
 
 This is the check that would have caught every user-facing bug we shipped:
 the Stylist being unreachable, prices rendered as "£0.03", "dresses" returning
@@ -19,6 +34,8 @@ import sys
 import urllib.request
 
 BASE = os.environ.get("PROD_API_URL", "https://nishika1202-vibezz-fashionmind-api.hf.space").rstrip("/")
+CUSTOMER_ID = os.environ.get("SMOKE_CUSTOMER_ID", "smoke-test-ci")
+FULL = os.environ.get("SMOKE_FULL", "") not in ("", "0", "false", "False")
 TIMEOUT = 60
 
 _fail = 0
@@ -50,6 +67,8 @@ def check(name, fn, soft=False):
             _fail += 1
 
 
+# ---- cheap checks: read-only, no DB writes, no LLM spend --------------------
+
 def t_health():
     st, txt = _req("/health")
     d = json.loads(txt)
@@ -57,8 +76,20 @@ def t_health():
     return (st == 200 and d.get("status") == "ok" and n > 0), f"{n} models loaded"
 
 
+def t_products():
+    st, txt = _req("/products?page_size=5")
+    return bool(json.loads(txt).get("products")), "catalogue reachable"
+
+
+def t_photos():
+    st, txt = _req("/catalog/photos?q=black+dress+women&n=3")
+    return bool(json.loads(txt).get("photos")), "image search returning results"
+
+
+# ---- full checks: write a row to Supabase + spend an OpenRouter call --------
+
 def t_recommend():
-    st, txt = _req("/recommend", "POST", {"customer_id": "guest", "n": 5})
+    st, txt = _req("/recommend", "POST", {"customer_id": CUSTOMER_ID, "n": 5})
     recs = json.loads(txt).get("recommendations", [])
     if not recs:
         return False, "empty recommendations"
@@ -68,14 +99,9 @@ def t_recommend():
     return True, f"{len(recs)} recs, all priced in INR"
 
 
-def t_products():
-    st, txt = _req("/products?page_size=5")
-    return bool(json.loads(txt).get("products")), "catalogue reachable"
-
-
 def t_chat_currency():
     st, txt = _req("/chat", "POST", {"message": "2 work tops please",
-                                     "customer_id": "guest", "history": []})
+                                     "customer_id": CUSTOMER_ID, "history": []})
     resp = json.loads(txt).get("response", "")
     if "Demo mode" in resp:
         return False, "assistant in demo mode (no LLM key)"
@@ -88,7 +114,7 @@ def t_chat_currency():
 
 def t_chat_category():
     st, txt = _req("/chat/stream", "POST", {"message": "show me some dresses",
-                                            "customer_id": "guest", "history": []})
+                                            "customer_id": CUSTOMER_ID, "history": []})
     prods = []
     for line in txt.splitlines():
         if line.startswith("data:"):
@@ -106,18 +132,17 @@ def t_chat_category():
     return True, f"{len(prods)} dress cards"
 
 
-def t_photos():
-    st, txt = _req("/catalog/photos?q=black+dress+women&n=3")
-    return bool(json.loads(txt).get("photos")), "image search returning results"
-
-
-print(f"smoke test -> {BASE}")
+print(f"smoke test -> {BASE}  (mode: {'full' if FULL else 'cheap'}, customer_id={CUSTOMER_ID!r})")
 check("health / models loaded", t_health)
-check("POST /recommend priced in INR", t_recommend)
 check("/products catalogue", t_products)
-check("chat reply in ₹, not demo mode", t_chat_currency)
-check("chat 'dresses' returns dresses", t_chat_category)
 check("/catalog/photos (SerpApi)", t_photos, soft=True)
+if FULL:
+    check("POST /recommend priced in INR", t_recommend)
+    check("chat reply in ₹, not demo mode", t_chat_currency)
+    check("chat 'dresses' returns dresses", t_chat_category)
+else:
+    print("  (skipping /recommend + /chat — set SMOKE_FULL=1 to include them;"
+         " they write to Supabase and spend an OpenRouter call)")
 
 print(f"\n{_fail} failed, {_warn} warnings")
 sys.exit(1 if _fail else 0)
