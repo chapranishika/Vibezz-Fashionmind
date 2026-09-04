@@ -18,11 +18,9 @@ quota being exhausted.
 
 Any row this writes uses SMOKE_CUSTOMER_ID (default "smoke-test-ci"), never
 "guest" — that id is real shared traffic and its rows shouldn't be mixed with
-synthetic test data. Purge smoke rows periodically:
-    delete from recommendations where customer_id = 'smoke-test-ci';
-    delete from chat_sessions   where customer_id = 'smoke-test-ci';
-    -- chat_messages cascades from chat_sessions if FKs are ON DELETE CASCADE;
-    -- otherwise delete by session_id first.
+synthetic test data. A daily pg_cron job on the Supabase side purges these rows
+automatically (db/migrations/003, job "purge-smoke-test-ci") — this isn't a
+"remember to clean up" note, it actually runs without anyone remembering.
 
 This is the check that would have caught every user-facing bug we shipped:
 the Stylist being unreachable, prices rendered as "£0.03", "dresses" returning
