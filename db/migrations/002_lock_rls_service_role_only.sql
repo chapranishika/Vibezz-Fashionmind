@@ -51,3 +51,20 @@ commit;
 -- Verify afterwards:
 --   set role anon;  select * from user_auth limit 1;   -- expect: permission denied
 --   reset role;
+
+-- KNOWN GAP (could not close from here — 42501 permission denied to change
+-- default privileges as `postgres`; only `supabase_admin` can alter its own):
+-- pg_default_acl still has an entry for owner_role=supabase_admin granting
+-- anon+authenticated full rights on anything IT creates. Tables created via
+-- the Supabase dashboard table editor (or any tooling that runs as
+-- supabase_admin) will come back with anon/authenticated wide open by
+-- default, same class of hole as this migration fixes.
+--
+-- Mitigation until someone with supabase_admin runs the ALTER DEFAULT
+-- PRIVILEGES themselves: after creating ANY new table, immediately run
+--   revoke all on <table> from anon, authenticated;
+-- and periodically re-run the verification query below — it must return zero
+-- rows:
+--   select grantee, count(*) from information_schema.role_table_grants
+--   where table_schema='public' and grantee in ('anon','authenticated')
+--   group by grantee;
