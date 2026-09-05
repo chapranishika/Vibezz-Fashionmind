@@ -10,8 +10,9 @@ script uploads the code and the artifacts together, via HF's native LFS.
 Usage (PowerShell / cmd):
 
     set HF_TOKEN=hf_xxx                        # a *write* token for the Space owner
-    python deploy/hf_space_sync.py             # all stages
-    python deploy/hf_space_sync.py code        # one stage: code | secrets | models | features | restart
+    python deploy/hf_space_sync.py deploy      # code -> restart -> wait healthy -> smoke  (the usual one)
+    python deploy/hf_space_sync.py all         # + secrets + the ~650MB LFS artifacts
+    python deploy/hf_space_sync.py code        # one stage: code | secrets | models | features | restart | verify
 
 Env overrides:
     HF_SPACE_REPO   default "Nishika1202/vibezz-fashionmind-api"
@@ -22,9 +23,12 @@ Env overrides:
 Secrets come from the repo's .env. `customers_clean.parquet` (~160 MB, not read
 at runtime) is skipped.
 """
+import json
 import os
+import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 from huggingface_hub import HfApi
@@ -33,7 +37,9 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 SPACE = os.environ.get("HF_SPACE_REPO", "Nishika1202/vibezz-fashionmind-api")
 MODELS_DIR = Path(os.environ.get("HF_MODELS_DIR", REPO_DIR / "models"))
 FEATURES_DIR = Path(os.environ.get("HF_FEATURES_DIR", REPO_DIR / "data" / "features"))
-SITE_URL = os.environ.get("SITE_URL", f"https://{SPACE.split('/')[-1].lower()}.hf.space")
+# HF Space subdomains are "{owner}-{space}.hf.space" -- the whole slug, not just
+# the space name (a "{space}.hf.space" bug cost 15 min elsewhere this project).
+SITE_URL = os.environ.get("SITE_URL", f"https://{SPACE.replace('/', '-').lower()}.hf.space")
 
 TOKEN = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
 if not TOKEN:
@@ -41,7 +47,11 @@ if not TOKEN:
 
 api = HfApi(token=TOKEN)
 stage = sys.argv[1] if len(sys.argv) > 1 else "all"
-WANT = {stage} if stage != "all" else {"code", "secrets", "models", "features", "restart"}
+_STAGES = {
+    "deploy": {"code", "restart", "verify"},
+    "all":    {"code", "secrets", "models", "features", "restart", "verify"},
+}
+WANT = _STAGES.get(stage, {stage})
 
 # secret names to push from .env (plus a couple of computed ones)
 SECRET_KEYS = ["OPENROUTER_API_KEY", "OPENROUTER_MODEL", "GEMINI_API_KEY",
@@ -120,5 +130,27 @@ if "features" in WANT:
 if "restart" in WANT:
     print(">> restart")
     _retry(lambda: api.restart_space(repo_id=SPACE))
+
+if "verify" in WANT:
+    print(f">> waiting for {SITE_URL} to come back healthy")
+    healthy = False
+    for i in range(1, 41):                       # up to 10 min
+        try:
+            with urllib.request.urlopen(f"{SITE_URL}/health", timeout=15) as r:
+                if json.loads(r.read()).get("status") == "ok":
+                    print(f"   healthy after ~{i * 15}s")
+                    healthy = True
+                    break
+        except Exception as e:
+            if i == 1:
+                print(f"   not up yet: {type(e).__name__} — will retry")
+        time.sleep(15)
+    if not healthy:
+        sys.exit(f"Space did not report healthy at {SITE_URL}/health — check the Space logs")
+    print(">> smoke test")
+    env = {**os.environ, "PROD_API_URL": SITE_URL}
+    rc = subprocess.call([sys.executable, str(REPO_DIR / "scripts" / "smoke_prod.py")], env=env)
+    if rc != 0:
+        sys.exit("smoke test failed against the freshly deployed Space")
 
 print("done:", stage)

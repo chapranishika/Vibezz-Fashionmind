@@ -11,6 +11,10 @@ venv/
 data/raw/
 data/features/*
 !data/features/model_card.json
+# curated trend seed — 2 MB of static India-retail data, a test fixture, not a
+# trained artifact; the catalog/trends test suite is dead without it
+!data/catalog/
+!data/catalog/trend_products.json
 *.csv
 *.parquet
 
