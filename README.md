@@ -128,8 +128,10 @@ uvicorn api.main:app --reload                # serve
 
 | Method | Endpoint | |
 |---|---|---|
-| GET | `/health` | status + `images_mounted` |
+| GET | `/health` | liveness — process is serving (says nothing about models/DB) |
+| GET | `/ready` | readiness — 503 unless models loaded AND DB reachable; Dockerfile `HEALTHCHECK` points here |
 | GET | `/health/db` | RLS / trigger / cron watchdog (503 if drifted); see SECURITY.md |
+| GET | `/metrics` | Prometheus exposition (latency histogram, req/rec/tool-call/token counters); dashboard: `deploy/grafana_dashboard.json` |
 | POST | `/recommend` | `{customer_id, n}` → ranked items + SHAP reasons |
 | POST | `/explain` | `{customer_id, article_id}` → the reasons for one pick |
 | GET | `/trends` | trending product types (demand forecast) |

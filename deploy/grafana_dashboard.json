@@ -1,0 +1,59 @@
+{
+  "__inputs": [
+    { "name": "DS_PROM", "label": "Prometheus", "type": "datasource", "pluginId": "prometheus" }
+  ],
+  "title": "Vibezz API",
+  "uid": "vibezz-api",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "type": "stat", "title": "Ready", "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "mappings": [
+        { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ] } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }, "expr": "app_ready" } ]
+    },
+    {
+      "type": "stat", "title": "Models loaded", "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [
+        { "color": "red", "value": null }, { "color": "green", "value": 30 } ] } } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }, "expr": "app_models_loaded" } ]
+    },
+    {
+      "type": "timeseries", "title": "Request rate by path", "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "expr": "sum by (path) (rate(http_requests_total[5m]))", "legendFormat": "{{path}}" } ]
+    },
+    {
+      "type": "timeseries", "title": "p50 / p95 / p99 latency (all paths)", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }, "expr": "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }, "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "5xx rate", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "5xx/s" } ]
+    },
+    {
+      "type": "timeseries", "title": "Recommendations served /s", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "expr": "sum by (cold_start) (rate(recommendations_served_total[5m]))", "legendFormat": "cold_start={{cold_start}}" } ]
+    },
+    {
+      "type": "timeseries", "title": "Chat tool calls /s", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "expr": "sum by (tool) (rate(chat_tool_calls_total[5m]))", "legendFormat": "{{tool}}" } ]
+    },
+    {
+      "type": "timeseries", "title": "LLM tokens /s", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "expr": "sum by (direction) (rate(llm_tokens_total[5m]))", "legendFormat": "{{direction}}" } ]
+    }
+  ]
+}

@@ -84,6 +84,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
+from api.metrics import (MetricsMiddleware, metrics_response, record_recs,
+                         record_chat, record_tool_call, record_llm_tokens)
+app.add_middleware(MetricsMiddleware)
+
 # Serve the extracted subset of real H&M product photos, if present.
 from fastapi.staticfiles import StaticFiles
 _IMG_DIR = BASE_DIR / "data" / "raw" / "images"
@@ -149,6 +153,18 @@ def ready():
     ready = checks["models_ok"] and checks["db_ok"]
     return JSONResponse({"ready": ready, **checks}, status_code=200 if ready else 503)
 
+@app.get("/metrics")
+def metrics():
+    """Prometheus exposition. Scrape target for a dashboard / alert rules."""
+    db_ok = True
+    try:
+        from api.db import get_db
+        get_db().table("recommendations").select("id").limit(1).execute()
+    except Exception:
+        db_ok = False
+    return metrics_response(models_loaded=len(M),
+                            ready=(len(M) >= MIN_MODELS and db_ok))
+
 @app.get("/health/db")
 def health_db(request: Request):
     """Security-posture watchdog: whether the RLS lockdown, the auto-revoke
@@ -186,6 +202,7 @@ def health_db(request: Request):
 @app.post("/recommend")
 def recommend(req: RecommendReq):
     result = get_recommendations(req.customer_id, req.occasion, req.max_price, req.n)
+    record_recs(len(result.get("recommendations", [])), result.get("is_cold_start", False))
     # ── Log to Supabase (fire-and-forget, never blocks response) ──
     try:
         recs = result.get("recommendations", [])
@@ -268,9 +285,14 @@ async def chat_endpoint(req: ChatReq):
                 f"({r.get('colour_group_name','')}) | {(r.get('reasons') or ['—'])[0]}"
                 for r in recs.get('recommendations', [])[:3])
         )
+        record_chat("demo")
         return {"response": demo, "history": req.history, "mode": "demo"}
     import time as _time
-    response, updated = chat(req.message, req.customer_id, req.history, api_key)
+    try:
+        response, updated = chat(req.message, req.customer_id, req.history, api_key)
+    except Exception:
+        record_chat("error"); raise
+    record_chat("live")
     # ── Log to Supabase ──────────────────────────────────────────
     try:
         latency = int((_time.time() - _t0) * 1000)
@@ -300,7 +322,21 @@ async def chat_stream(req: ChatReq):
         return StreamingResponse(demo_stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache"})
 
-    return StreamingResponse(
-        stream_chat(req.message, req.customer_id, req.history, api_key),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    async def _instrumented():
+        record_chat("live")
+        async for chunk in _aiter(stream_chat(req.message, req.customer_id, req.history, api_key)):
+            if '"tool_call"' in chunk:
+                try:
+                    record_tool_call(json.loads(chunk[5:]).get("tool_call", ""))
+                except Exception:
+                    pass
+            yield chunk
+
+    return StreamingResponse(_instrumented(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+async def _aiter(gen):
+    """stream_chat is a sync generator; iterate it without blocking the loop hard."""
+    for item in gen:
+        yield item
