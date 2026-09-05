@@ -40,18 +40,38 @@ All numbers come from the training scripts and are re-derivable from
 2020-05-01 → 2020-09-08, predict the two weeks after. Held-out test users are
 never seen during training.
 
-**Held-out recall@10** (1,000 users):
+**Held-out NDCG@10** (1,000 users), mean with 95% bootstrap CI
+(1,000 resamples over users — `python scripts/eval_slices.py`):
 
-| Model | Recall@10 | NDCG@10 | MAP@12 |
-|---|---|---|---|
-| Popularity baseline | 0.0037 | 0.0022 | 0.0008 |
-| ALS retrieval | 0.0078 | 0.0065 | 0.0032 |
-| **Full pipeline (re-ranked)** | **0.0123** | **0.0087** | **0.0041** |
+| Model | NDCG@10 | 95% CI |
+|---|---|---|
+| Popularity baseline | 0.0022 | [0.0011, 0.0034] |
+| ALS retrieval | 0.0065 | [0.0042, 0.0093] |
+| **Full pipeline (re-ranked)** | **0.0087** | **[0.0059, 0.0115]** |
 
-* ALS ≈ **2.1× popularity**; the re-ranker adds **+58%** recall over ALS.
-* **Paired hit@12** on the same 1,000 users: ALS 0.033 → re-ranked **0.050**
-  (**+51%**), McNemar exact **p = 0.014**, 95% bootstrap CI **[0.004, 0.030]** —
-  significant, the interval does not cross zero.
+* **The pipeline's and ALS's marginal CIs overlap** (0.0059–0.0115 vs
+  0.0042–0.0093). The re-ranker's edge is real *paired* but not resolvable from
+  1,000 users on the unpaired margins — the honest read is "the re-ranker helps
+  on the users it helps, and the aggregate lift needs more users or an online
+  test to call with confidence."
+* **Paired hit@12** on the same 1,000 users: ALS 0.033 → re-ranked **0.050**,
+  McNemar exact **p = 0.014**, 95% bootstrap CI **[0.004, 0.030]** — the paired
+  test *does* clear zero because it cancels per-user variance the margins carry.
+* **Where the re-ranker helps vs hurts** (NDCG@10, `data/features/eval_slices.csv`):
+
+  | slice | ALS | re-ranked | |
+  |---|---|---|---|
+  | age = mature | 0.0073 | **0.0144** | re-ranker ~2× |
+  | age = mid | **0.0064** | 0.0046 | re-ranker *worse* |
+  | price tier = high | 0.0053 | **0.0092** | |
+  | price tier = low | **0.0106** | 0.0088 | ALS wins |
+
+  It's not a uniform lift — the re-ranker trades mid-age / budget-shopper
+  performance for gains on mature / higher-spend users. A product decision, not
+  just a metric.
+* The held-out set is drawn from users with ≥1 future purchase, so every test
+  user already has history — **cold-start is a code path with no offline
+  coverage**. That's a gap, not a result.
 * **Retrieval ceiling — candidate recall@100 = 0.036.** ALS only puts 3.6% of
   held-out ground-truth into the candidate pool, so 0.036 is the hard cap on
   recall@10. The pipeline reaches 0.012, i.e. **~34% of what is retrievable**.
