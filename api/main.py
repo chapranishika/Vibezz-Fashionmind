@@ -124,19 +124,36 @@ def health():
             "images_mounted": IMAGES_MOUNTED}
 
 @app.get("/health/db")
-def health_db():
-    """Security-posture watchdog: reports whether the RLS lockdown, the
-    auto-revoke event trigger, and the three pg_cron maintenance jobs are all
-    still in place (db/migrations/002-004). smoke_prod.py asserts `ok` here, so
-    a failed daily CI run — which GitHub emails the repo owner about — is the
-    alert channel if any of them silently disappears."""
+def health_db(request: Request):
+    """Security-posture watchdog: whether the RLS lockdown, the auto-revoke
+    event trigger, and the pg_cron maintenance jobs are all still in place
+    (db/migrations/002-004). smoke_prod.py asserts `ok` here, so a failed daily
+    CI run — which GitHub emails the repo owner about — is the alert channel if
+    any of them silently disappears.
+
+    Unauthenticated callers (the smoke test) get only `{"ok": bool}` + status —
+    the per-invariant detail (grant counts, which trigger is missing) is a map
+    of how to attack the DB when it's broken, so it needs a valid JWT."""
     try:
         from api.db import get_db
+        from api.routes.auth import SECRET, ALGO
+        import jwt as _jwt
         res = get_db().rpc("security_posture", {}).execute()
         posture = res.data if isinstance(res.data, dict) else (res.data or {})
-        code = 200 if posture.get("ok") else 503
-        return JSONResponse(posture, status_code=code)
+        ok = bool(posture.get("ok"))
+        code = 200 if ok else 503
+
+        authed = False
+        hdr = request.headers.get("authorization", "")
+        if hdr.lower().startswith("bearer "):
+            try:
+                _jwt.decode(hdr[7:], SECRET, algorithms=[ALGO])
+                authed = True
+            except Exception:
+                authed = False
+        return JSONResponse(posture if authed else {"ok": ok}, status_code=code)
     except Exception as e:
+        # detail of an *exception* is fine to expose — it's not posture data
         return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"},
                             status_code=503)
 

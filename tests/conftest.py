@@ -139,8 +139,20 @@ class _FakeTable:
 
 
 class _FakeDB:
-    def __init__(self): self._store = {}
+    def __init__(self):
+        self._store = {}
+        # what security_posture() returns; a test can flip this to simulate drift
+        self.rpc_return = {
+            "ok": True, "anon_grants": 0, "event_trigger": True,
+            "rls_all_tables": True,
+            "cron": {"purge": True, "reassert": True, "selfheal": True},
+        }
+
     def table(self, name): return _FakeTable(self._store, name)
+
+    def rpc(self, name, params=None):
+        return types.SimpleNamespace(
+            execute=lambda: types.SimpleNamespace(data=dict(self.rpc_return)))
 
 
 @pytest.fixture()
