@@ -1,0 +1,12 @@
+# Minimal Supabase CLI config. `supabase link --project-ref cxfsiotzfshrjdrctmge`
+# then `supabase db push` to apply migrations to the linked project, or
+# `supabase start && supabase db reset` to build the whole schema from zero
+# locally (that's what CI does — see .github/workflows/db.yml).
+project_id = "vibezz-fashionmind"
+
+[db]
+major_version = 17
+
+[db.migrations]
+# apply in filename order
+schema_paths = []

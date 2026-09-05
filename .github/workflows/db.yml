@@ -1,0 +1,34 @@
+name: db migrations
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**", ".github/workflows/db.yml"]
+  pull_request:
+    paths: ["supabase/**"]
+
+# Proves the schema is reproducible from zero: spin the full local Supabase
+# stack, apply every migration in order, then assert the security posture the
+# migrations are supposed to produce. No secrets — the local stack is ephemeral.
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase db start
+      - run: supabase db reset            # applies supabase/migrations/* to a fresh db
+      - name: assert security posture
+        run: |
+          supabase db query --local "select public.security_posture()" | tee /tmp/posture.json
+          python - <<'PY'
+          import json, re, sys
+          txt = open("/tmp/posture.json").read()
+          m = re.search(r'\{.*\}', txt, re.S)
+          p = json.loads(m.group(0))
+          assert p["ok"] is True, p
+          assert p["anon_grants"] == 0 and p["event_trigger"] and p["rls_all_tables"], p
+          print("posture ok:", p)
+          PY
