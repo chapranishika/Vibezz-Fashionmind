@@ -1,0 +1,76 @@
+name: uptime
+
+# Zero-external-account fallback monitor: pings /ready every ~10 min and opens
+# (or updates) a GitHub issue when it's down. GitHub emails the repo owner on
+# new issues, so this is a real alert channel with nothing to sign up for.
+#
+# For a tighter interval + phone push, point an external monitor at the same
+# URL instead — see OPS.md. GitHub throttles `schedule` heavily; treat this as
+# a safety net, not a 1-minute SLA.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: curl /ready
+        id: probe
+        run: |
+          set +e
+          URL="${PROD_API_URL:-https://nishika1202-vibezz-fashionmind-api.hf.space}/ready"
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" -m 20 "$URL")
+            [ "$code" = "200" ] && { echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; }
+            sleep 15
+          done
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          { echo "body<<EOF"; cat /tmp/body; echo; echo EOF; } >> "$GITHUB_OUTPUT"
+        env:
+          PROD_API_URL: https://nishika1202-vibezz-fashionmind-api.hf.space
+
+      - name: open / update alert issue on failure
+        if: steps.probe.outputs.ok == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "🔴 /ready is failing";
+            const body = `\`/ready\` returned **${{ steps.probe.outputs.code }}** on 3 attempts.\n\n` +
+              "```\n${{ steps.probe.outputs.body }}\n```\n" +
+              `run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "uptime" });
+            if (open.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open.data[0].number, body });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ["uptime"] });
+            }
+
+      - name: close alert issue on recovery
+        if: steps.probe.outputs.ok == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "uptime" });
+            for (const issue of open.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number, body: "✅ `/ready` is back to 200 — closing." });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number, state: "closed" });
+            }
