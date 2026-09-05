@@ -32,7 +32,7 @@ from api.routes.catalog  import router as catalog_router
 BASE_DIR = _BASE_DIR
 os.chdir(BASE_DIR)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 warnings.filterwarnings('ignore')
@@ -122,6 +122,23 @@ class TextSearchReq(BaseModel):
 def health():
     return {"status": "ok", "models_loaded": len(M), "service": "FashionMind",
             "images_mounted": IMAGES_MOUNTED}
+
+@app.get("/health/db")
+def health_db():
+    """Security-posture watchdog: reports whether the RLS lockdown, the
+    auto-revoke event trigger, and the three pg_cron maintenance jobs are all
+    still in place (db/migrations/002-004). smoke_prod.py asserts `ok` here, so
+    a failed daily CI run — which GitHub emails the repo owner about — is the
+    alert channel if any of them silently disappears."""
+    try:
+        from api.db import get_db
+        res = get_db().rpc("security_posture", {}).execute()
+        posture = res.data if isinstance(res.data, dict) else (res.data or {})
+        code = 200 if posture.get("ok") else 503
+        return JSONResponse(posture, status_code=code)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"},
+                            status_code=503)
 
 @app.post("/recommend")
 def recommend(req: RecommendReq):

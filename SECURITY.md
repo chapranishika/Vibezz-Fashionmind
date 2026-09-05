@@ -1,5 +1,14 @@
 # Security notes
 
+## Never paste a secret value into a chat with an assistant
+
+Put the new value on its line in `.env` yourself, then tell the assistant
+"it's in .env" and let `rotate_secret.py --from-env` take it from there. The
+value never needs to appear in the conversation, shell history, or a command
+argument. (This file exists partly because a remediation session rotated three
+keys by pasting each one into the transcript — fixing "secrets in chat" by
+putting more secrets in chat.)
+
 ## If a secret leaks (chat transcript, screenshot, commit, anywhere)
 
 Rotate it with `scripts/rotate_secret.py` — validates the new value against the
@@ -8,7 +17,9 @@ healthy, runs the smoke test. Refuses to touch anything if validation fails.
 
 ```
 set HF_TOKEN=hf_xxx
-python scripts/rotate_secret.py OPENROUTER_API_KEY sk-or-v1-...
+# preferred — value already in .env, nothing pasted anywhere:
+python scripts/rotate_secret.py OPENROUTER_API_KEY --from-env
+# or pass it directly (ends up in shell history):
 python scripts/rotate_secret.py SERPAPI_KEY ...
 python scripts/rotate_secret.py SUPABASE_SERVICE_KEY sb_secret_...
 ```
@@ -54,21 +65,28 @@ Every `public` table should have RLS enabled with **zero** grants to
 never talks to Supabase directly (verified: no supabase-js, no anon key in
 `frontend/index.html`).
 
-This is enforced two ways (`db/migrations/002`, `003`):
+This is enforced (`db/migrations/002`–`004`):
 - An event trigger (`auto_revoke_new_tables`) revokes anon/authenticated on
   every `CREATE TABLE` in `public`, immediately, regardless of which role
   created it — closes the gap that `ALTER DEFAULT PRIVILEGES` couldn't (we
   don't have permission to alter `supabase_admin`'s own default ACL).
-- A weekly `pg_cron` job (`reassert-anon-revoke`) re-runs the revoke as a
-  backstop, in case something re-grants access some other way.
+- `pg_cron` jobs: `reassert-anon-revoke` (weekly backstop) and
+  `security-selfheal` (hourly — re-asserts the revoke *and* re-creates the
+  event trigger if it has vanished).
 
-Spot-check it's actually working:
+### Watching the watchdogs
+
+`public.security_posture()` reports every invariant as `{ok, anon_grants,
+event_trigger, rls_all_tables, cron:{...}}`. The API serves it at
+**`GET /health/db`** (HTTP 503 when `ok` is false), and `scripts/smoke_prod.py`
+asserts it on every run. So if the trigger or a cron job silently disappears:
+the daily CI smoke run fails → GitHub emails the repo owner. And
+`security-selfheal` puts it back within the hour anyway.
+
+Manual spot-check:
 
 ```sql
-select grantee, count(*) from information_schema.role_table_grants
-where table_schema='public' and grantee in ('anon','authenticated')
-group by grantee;
--- must return zero rows
+select public.security_posture();   -- {"ok": true, ...}
 ```
 
 ## Prod smoke test data hygiene

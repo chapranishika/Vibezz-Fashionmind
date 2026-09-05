@@ -109,6 +109,7 @@ uvicorn api.main:app --reload                # serve
 | Method | Endpoint | |
 |---|---|---|
 | GET | `/health` | status + `images_mounted` |
+| GET | `/health/db` | RLS / trigger / cron watchdog (503 if drifted); see SECURITY.md |
 | POST | `/recommend` | `{customer_id, n}` → ranked items + SHAP reasons |
 | POST | `/explain` | `{customer_id, article_id}` → the reasons for one pick |
 | GET | `/trends` | trending product types (demand forecast) |

@@ -29,6 +29,7 @@ trousers, and the API running with zero models loaded.
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 BASE = os.environ.get("PROD_API_URL", "https://nishika1202-vibezz-fashionmind-api.hf.space").rstrip("/")
@@ -84,6 +85,20 @@ def t_photos():
     return bool(json.loads(txt).get("photos")), "image search returning results"
 
 
+def t_db_posture():
+    """The watchdog-on-the-watchdogs: /health/db reports whether the RLS
+    lockdown, the auto-revoke event trigger, and the pg_cron jobs
+    (db/migrations/002-004) are all still there. 503 if any are gone."""
+    try:
+        st, txt = _req("/health/db")
+    except urllib.error.HTTPError as e:
+        st, txt = e.code, e.read().decode()
+    d = json.loads(txt)
+    if d.get("ok"):
+        return True, "RLS locked, event trigger + 3 cron jobs present"
+    return False, f"posture broken: {json.dumps({k: v for k, v in d.items() if k != 'checked_at'})}"
+
+
 # ---- full checks: write a row to Supabase + spend an OpenRouter call --------
 
 def t_recommend():
@@ -132,6 +147,7 @@ def t_chat_category():
 
 print(f"smoke test -> {BASE}  (mode: {'full' if FULL else 'cheap'}, customer_id={CUSTOMER_ID!r})")
 check("health / models loaded", t_health)
+check("db security posture (RLS + triggers + cron)", t_db_posture)
 check("/products catalogue", t_products)
 check("/catalog/photos (SerpApi)", t_photos, soft=True)
 if FULL:

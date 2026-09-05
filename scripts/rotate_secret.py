@@ -8,10 +8,18 @@ session -- this is the tool that should have existed the first time.
 
 Usage:
     set HF_TOKEN=hf_xxx
-    python scripts/rotate_secret.py OPENROUTER_API_KEY sk-or-v1-...
+
+    # preferred: put the new value in .env yourself, then:
+    python scripts/rotate_secret.py OPENROUTER_API_KEY --from-env
+
+    # or pass it directly (lands in shell history + any transcript -- avoid for
+    # anything sensitive):
     python scripts/rotate_secret.py SERPAPI_KEY 8bcc...
-    python scripts/rotate_secret.py SUPABASE_SERVICE_KEY sb_secret_...
-    python scripts/rotate_secret.py SOME_OTHER_KEY value --skip-validate
+
+DO NOT paste secret values into a chat with an assistant. Put the new value in
+.env by hand and run this with --from-env; the assistant never needs to see it.
+(The whole reason this script exists is a session that rotated three keys by
+pasting each one into the transcript.)
 
 Refuses to touch .env or the Space if validation fails (unless the key has no
 validator, or --skip-validate is passed). Prints exactly what it did and did
@@ -110,35 +118,56 @@ def update_space_secret(key, value):
             time.sleep(6)
 
 
-def wait_healthy(tries=30, wait=15):
-    # A Space restart isn't always a quick container bounce -- it can take a
-    # full rebuild cycle. First cut of this tool used tries=12 (3 min) and
-    # timed out on a rotation that was actually fine 30s later; 30x15s=7.5min
-    # matches what's actually been observed for this Space this session.
+def wait_healthy(tries=20, wait=15):
+    # An earlier version "timed out" here for 7.5 minutes because SPACE_URL was
+    # built without the HF owner prefix and pointed at a host that doesn't
+    # exist. Lesson: on the FIRST failed poll, show the URL and the actual
+    # error -- don't swallow every attempt and let it look like slowness.
+    url = f"{SPACE_URL}/health"
     for i in range(1, tries + 1):
         try:
-            st, txt = _get(f"{SPACE_URL}/health", timeout=20)
+            st, txt = _get(url, timeout=20)
             d = json.loads(txt)
             if d.get("status") == "ok":
                 print(f"  healthy: {d}")
                 return True
-        except Exception:
-            pass
+            first_err = f"HTTP {st}, status={d.get('status')!r}"
+        except Exception as e:
+            first_err = f"{type(e).__name__}: {e}"
+        if i == 1:
+            print(f"  not up yet ({url}): {first_err} -- will retry {tries-1}x")
         time.sleep(wait)
+    print(f"  gave up after {tries} tries against {url}")
     return False
+
+
+def _value_from_env_file(key):
+    text = ENV_PATH.read_text(encoding="utf-8")
+    m = re.search(rf"^{re.escape(key)}=(.*)$", text, re.MULTILINE)
+    if not m or not m.group(1).strip():
+        sys.exit(f"--from-env: put the new value on the {key}= line in .env first")
+    return m.group(1).strip()
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("key", help="env var name, e.g. OPENROUTER_API_KEY")
-    ap.add_argument("value", help="the new secret value")
+    ap.add_argument("value", nargs="?", help="the new secret value (omit with --from-env)")
+    ap.add_argument("--from-env", action="store_true",
+                    help="read the new value from .env (put it there by hand first) -- "
+                         "the value never touches the command line, shell history, or a transcript")
     ap.add_argument("--skip-validate", action="store_true", help="skip the live-test step")
     ap.add_argument("--no-space", action="store_true", help="only update .env, don't touch the HF Space")
     ap.add_argument("--full-smoke", action="store_true", help="run scripts/smoke_prod.py with SMOKE_FULL=1 at the end")
     args = ap.parse_args()
 
+    if args.from_env:
+        args.value = _value_from_env_file(args.key)
+    elif not args.value:
+        ap.error("give a value, or use --from-env after putting it in .env")
+
     print(f"target Space: {SPACE}  ({SPACE_URL})")
-    print(f">> validating {args.key}")
+    print(f">> validating {args.key} ({'from .env' if args.from_env else 'from arg'})")
     validator = VALIDATORS.get(args.key)
     if args.skip_validate or not validator:
         print("  (no live test for this key)" if not validator else "  (--skip-validate)")
