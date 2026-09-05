@@ -160,14 +160,24 @@ Copy `.env.example` → `.env`. Everything has a safe default:
 
 ## Tests
 
-`pytest -q` — 44 tests: ranking metrics, cold-start logic, API contract,
-auth + cart flow. Runs offline in ~1 s with tiny fixtures; no dataset needed.
+`pytest -q` — offline suite (ranking metrics, cold-start logic, API contract,
+auth + cart, `/ready` + `/health/db` + `/metrics`, data contracts, eval-slice
+stats). Tiny fixtures, no dataset needed.
 
 `python scripts/smoke_prod.py` — end-to-end check against a running deployment
-(`PROD_API_URL` env, defaults to the live Space): models loaded, `/recommend`
-priced in ₹, chat live (not demo) and returning the right garment category.
-CI (`.github/workflows/ci.yml`) runs the unit suite on every push and the smoke
-test on `main` + daily.
+(`PROD_API_URL`, defaults to the live Space): `/ready`, security posture,
+`/recommend` priced in ₹, chat live and returning the right garment category.
+
+`python scripts/validate_features.py` — data contracts on the feature parquets
+(`src/data/contracts.py`): uniqueness, ranges, `is_*`/`*_idx` domains,
+referential integrity (price/popularity → catalogue), cross-table vocabulary.
+**Run after the ETL and before deploying a retrained model.** Exit ≠ 0 on any
+`error`-severity violation. Currently: 0 errors, 1 warn (a known age-bucket
+vocabulary split between two tables — documented, non-fatal).
+
+CI (`.github/workflows/ci.yml`) runs the offline suite on every push, the smoke
+test on `main`, and cheap smoke daily. `uptime.yml` pings `/ready` every ~10 min
+and opens an issue on failure (see [OPS.md](OPS.md)).
 
 ---
 
