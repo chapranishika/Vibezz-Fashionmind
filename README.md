@@ -40,46 +40,52 @@ All numbers come from the training scripts and are re-derivable from
 2020-05-01 → 2020-09-08, predict the two weeks after. Held-out test users are
 never seen during training.
 
+> **Correction (2026-09-06).** A point-in-time leak was found and fixed:
+> `trend_score` — the model's #1 SHAP feature — was built from `trend_scores`'
+> latest week, which runs to 2020-09-21, *inside* the holdout window. The
+> re-ranker was partly scoring on trends it could not have known at serving
+> time. `scripts/check_leakage.py` now guards this; `reranker.py` /
+> `eval_slices.py` cap the trend week at the 2020-09-08 split. The numbers
+> below are the **leak-free** re-measurement. The shipped `reranker.pkl`
+> predates the fix — a retrain is needed to make the *served* model match.
+
 **Held-out NDCG@10** (1,000 users), mean with 95% bootstrap CI
 (1,000 resamples over users — `python scripts/eval_slices.py`):
 
-| Model | NDCG@10 | 95% CI |
-|---|---|---|
-| Popularity baseline | 0.0022 | [0.0011, 0.0034] |
-| ALS retrieval | 0.0065 | [0.0042, 0.0093] |
-| **Full pipeline (re-ranked)** | **0.0087** | **[0.0059, 0.0115]** |
+| Model | NDCG@10 (leak-free) | 95% CI | was (with leak) |
+|---|---|---|---|
+| Popularity baseline | 0.0022 | [0.0011, 0.0034] | 0.0022 |
+| ALS retrieval | 0.0065 | [0.0042, 0.0093] | 0.0065 |
+| Full pipeline (re-ranked) | 0.0069 | [0.0043, 0.0098] | 0.0087 |
 
-* **The pipeline's and ALS's marginal CIs overlap** (0.0059–0.0115 vs
-  0.0042–0.0093). The re-ranker's edge is real *paired* but not resolvable from
-  1,000 users on the unpaired margins — the honest read is "the re-ranker helps
-  on the users it helps, and the aggregate lift needs more users or an online
-  test to call with confidence."
-* **Paired hit@12** on the same 1,000 users: ALS 0.033 → re-ranked **0.050**,
-  McNemar exact **p = 0.014**, 95% bootstrap CI **[0.004, 0.030]** — the paired
-  test *does* clear zero because it cancels per-user variance the margins carry.
-* **Where the re-ranker helps vs hurts** (NDCG@10, `data/features/eval_slices.csv`):
+* **Evaluated without the leak, the re-ranker does not beat serving ALS
+  candidates directly** — 0.0069 vs 0.0065, CIs almost entirely overlapping.
+  Most of the previously reported lift (0.0087) was the trend leak. The old
+  paired McNemar result (p = 0.014) used the same leaked feature and is not
+  trustworthy until a leak-free retrain re-measures it.
+* **What this means for the design:** the second stage isn't justified on this
+  data as it stands. Leak-free feature ablation (`scripts/ablate_features.py`,
+  zero each feature → ΔNDCG@10, 95% bootstrap CI):
 
-  | slice | ALS | re-ranked | |
-  |---|---|---|---|
-  | age = mature | 0.0073 | **0.0144** | re-ranker ~2× |
-  | age = mid | **0.0064** | 0.0046 | re-ranker *worse* |
-  | price tier = high | 0.0053 | **0.0092** | |
-  | price tier = low | **0.0106** | 0.0088 | ALS wins |
+  | carries the model (CI excludes 0) | ~marginal | dead (Δ ≈ 0) |
+  |---|---|---|
+  | `rank_norm` −45% · `popularity_score` −41% · `nlp_sim` −27% | `ptype_idx` −22% · `price_affinity` −10% | `als_score`, `visual_sim`, `trend_score`, `category_match`, `age_norm`, `colour_idx`, `garment_idx`, `engagement_score` |
 
-  It's not a uniform lift — the re-ranker trades mid-age / budget-shopper
-  performance for gains on mature / higher-spend users. A product decision, not
-  just a metric.
+  The single most important feature is **`rank_norm` — the ALS candidate's
+  position**. The "learned re-ranker" leans hardest on the retrieval ordering
+  it was meant to improve on, and 8 of 13 signals do nothing measurable. The
+  real levers are better *retrieval* (ceiling below) and features that aren't
+  just re-derived ALS.
+* **Retrieval ceiling — candidate recall@100 = 0.036.** ALS puts only 3.6% of
+  held-out ground-truth into the candidate pool, the hard cap on everything
+  downstream. Absolute numbers are low because next-basket prediction on a
+  ~4.5-month, 0.034%-dense matrix is genuinely sparse. Raising this (two-tower
+  / sequence retrieval) is worth more than any ranker change.
 * The held-out set is drawn from users with ≥1 future purchase, so every test
   user already has history — **cold-start is a code path with no offline
   coverage**. That's a gap, not a result.
-* **Retrieval ceiling — candidate recall@100 = 0.036.** ALS only puts 3.6% of
-  held-out ground-truth into the candidate pool, so 0.036 is the hard cap on
-  recall@10. The pipeline reaches 0.012, i.e. **~34% of what is retrievable**.
-  Absolute numbers are low because next-basket prediction on a ~4.5-month,
-  0.034%-dense matrix is genuinely sparse — the honest lever left is better
-  *retrieval*, not a better re-ranker.
-* BPR is a reference model (train AUC 0.97) but underperforms ALS on this task
-  and is not carried into the pipeline.
+* BPR is a reference model (train AUC 0.97) but underperforms ALS and is not
+  carried into the pipeline.
 * Trend forecast: **MAPE 8.9%**, MAE 166, 106 weeks.
 
 Interaction matrix after ≥5-purchase users and ≥3-purchase items:

@@ -88,7 +88,10 @@ def _load():
     M["pop_s"] = pop.set_index("article_id")["score"].to_dict()
     M["pop12"] = pop.head(12)["article_id"].tolist()
     trend = pd.read_parquet("data/features/trend_scores.parquet")
-    lw = trend["week"].max()
+    # point-in-time: cap the trend week at the training split (see reranker.py)
+    _split = pd.Timestamp("2020-09-08")
+    _w = trend.loc[trend.week <= _split, "week"]
+    lw = _w.max() if len(_w) else trend["week"].max()
     M["lt_map"] = trend[trend.week == lw].set_index("product_type_name")["trend_score"].to_dict()
     M["cust"] = pd.read_parquet("data/features/customer_segments.parquet").set_index("customer_id")
     M["u_price"] = pd.read_parquet("data/features/user_avg_price.parquet").set_index("customer_id")["avg_price"].to_dict()

@@ -30,6 +30,10 @@ jobs:
       - run: pytest -q
         # conftest.py patches model loading + forces demo mode, so no artifacts
         # or API keys are needed here.
+      - name: leakage guards (static)
+        run: python scripts/check_leakage.py
+        # data re-derivation needs data/raw/; this asserts the point-in-time
+        # guards are still in the feature builders.
 
   smoke:
     name: live prod smoke

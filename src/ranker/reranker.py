@@ -84,7 +84,13 @@ def run():
     pop12  = pop.head(12)['article_id'].tolist()
 
     trend  = pd.read_parquet('data/features/trend_scores.parquet')
-    lw     = trend['week'].max()
+    # POINT-IN-TIME: trend_scores runs to WINDOW_END (2020-09-22), inside the
+    # holdout. Building trend_score from a post-split week leaks the future into
+    # the model's single most important feature (SHAP #1). Cap at the last week
+    # <= the training split; serving would only know weeks up to "now" anyway.
+    SPLIT_WEEK = pd.Timestamp('2020-09-08')
+    _weeks = trend.loc[trend.week <= SPLIT_WEEK, 'week']
+    lw     = _weeks.max() if len(_weeks) else trend['week'].max()
     lt_map = trend[trend.week==lw].set_index('product_type_name')['trend_score'].to_dict()
 
     cust   = pd.read_parquet('data/features/customer_segments.parquet').set_index('customer_id')
