@@ -49,9 +49,14 @@ from src.genai.stylist_chatbot import (
 # models are loaded once, not once per module, so there is no duplicate copy
 # of the ALS model / FAISS indexes / feature arrays in memory.
 M = {}
+# minimum object count a healthy load produces (currently 33); readiness fails
+# below this so a model-less container never gets traffic.
+MIN_MODELS = 30
+_LOAD_ERROR: str | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _LOAD_ERROR
     print("Loading FashionMind models...")
     import time
     t0 = time.time()
@@ -60,7 +65,8 @@ async def lifespan(app: FastAPI):
         M.update(_MODELS)     # expose the same objects here — no second copy
         print(f"All models loaded in {time.time()-t0:.1f}s ✓  ({len(M)} objects)")
     except Exception as e:
-        print(f"Model loading error: {e}")
+        _LOAD_ERROR = f"{type(e).__name__}: {e}"
+        print(f"Model loading error: {_LOAD_ERROR}")
     yield
     M.clear()
 
@@ -120,8 +126,28 @@ class TextSearchReq(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────────────
 @app.get("/health")
 def health():
+    """Liveness only — the process is up and serving. Says nothing about whether
+    models loaded or the DB is reachable; use /ready for that."""
     return {"status": "ok", "models_loaded": len(M), "service": "FashionMind",
             "images_mounted": IMAGES_MOUNTED}
+
+@app.get("/ready")
+def ready():
+    """Readiness: models actually loaded AND the DB answers. 503 otherwise, so
+    the platform healthcheck (Dockerfile HEALTHCHECK -> here) refuses to route
+    traffic to a container that booted broken — the "prod ran for months with
+    zero models" failure mode becomes impossible."""
+    checks = {"models": len(M), "min_models": MIN_MODELS,
+              "models_ok": len(M) >= MIN_MODELS, "load_error": _LOAD_ERROR}
+    try:
+        from api.db import get_db
+        get_db().table("recommendations").select("id").limit(1).execute()
+        checks["db_ok"] = True
+    except Exception as e:
+        checks["db_ok"] = False
+        checks["db_error"] = f"{type(e).__name__}: {e}"
+    ready = checks["models_ok"] and checks["db_ok"]
+    return JSONResponse({"ready": ready, **checks}, status_code=200 if ready else 503)
 
 @app.get("/health/db")
 def health_db(request: Request):

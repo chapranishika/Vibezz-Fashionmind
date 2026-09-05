@@ -75,6 +75,18 @@ def t_health():
     return (st == 200 and d.get("status") == "ok" and n > 0), f"{n} models loaded"
 
 
+def t_ready():
+    """/ready = models loaded AND DB reachable (503 otherwise)."""
+    try:
+        st, txt = _req("/ready")
+    except urllib.error.HTTPError as e:
+        st, txt = e.code, e.read().decode()
+    d = json.loads(txt)
+    if d.get("ready"):
+        return True, f"{d.get('models')} models, db_ok"
+    return False, f"not ready: {json.dumps({k: v for k, v in d.items() if 'error' in k or not v})}"
+
+
 def t_products():
     st, txt = _req("/products?page_size=5")
     return bool(json.loads(txt).get("products")), "catalogue reachable"
@@ -147,6 +159,7 @@ def t_chat_category():
 
 print(f"smoke test -> {BASE}  (mode: {'full' if FULL else 'cheap'}, customer_id={CUSTOMER_ID!r})")
 check("health / models loaded", t_health)
+check("ready (models + db)", t_ready)
 check("db security posture (RLS + triggers + cron)", t_db_posture)
 check("/products catalogue", t_products)
 check("/catalog/photos (SerpApi)", t_photos, soft=True)

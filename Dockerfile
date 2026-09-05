@@ -20,4 +20,9 @@ ENV PORT=7860 \
     HF_HOME=/tmp/hf
 EXPOSE 7860
 
+# Readiness, not liveness: /ready is 503 until models loaded AND DB reachable,
+# so an orchestrator won't route to a container that booted broken.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
+    CMD curl -fsS "http://localhost:${PORT:-7860}/ready" || exit 1
+
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
