@@ -55,3 +55,7 @@ Thumbs.db
 .vercel
 .env*.local
 frontend/index.*.html
+
+# local secret drop for deploy scripts (never commit)
+.hf_token
+*.token
