@@ -84,6 +84,15 @@ never seen during training.
 * The held-out set is drawn from users with ≥1 future purchase, so every test
   user already has history — **cold-start is a code path with no offline
   coverage**. That's a gap, not a result.
+* **Off-policy evaluation** (`src/eval/offpolicy.py`, `scripts/offpolicy_eval.py`):
+  IPS / SNIPS / doubly-robust estimators to answer "what would a ranker change
+  do to CTR?" from logged data. The serving policy is deterministic, so its
+  propensities are degenerate — `/recommend` grows an ε-greedy slate shuffle
+  (`RECS_EXPLORE_EPS`, default 0 = off) that logs `p_logged` per impression to
+  make the log usable. Estimators are validated against a synthetic bandit with
+  a known target value (IPS unbiased, SNIPS lower-variance, DR robust to a
+  wrong reward model *or* wrong propensities); real-data OPE waits on collected
+  exploration traffic.
 * BPR is a reference model (train AUC 0.97) but underperforms ALS and is not
   carried into the pipeline.
 * Trend forecast: **MAPE 8.9%**, MAE 166, 106 weeks.

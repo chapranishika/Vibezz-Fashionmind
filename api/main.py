@@ -4,7 +4,7 @@ FashionMind API — Production FastAPI Application
 All models loaded once at startup via lifespan context.
 Endpoints: /health /recommend /trends /outfit /visual-search /explain /chat /chat/stream
 """
-import os, sys, json, warnings
+import os, sys, json, random, warnings
 from pathlib import Path
 
 # Load .env before anything reads os.getenv (auth secret, Supabase keys, API
@@ -199,25 +199,41 @@ def health_db(request: Request):
         return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"},
                             status_code=503)
 
+_EXPLORE_EPS = float(os.getenv("RECS_EXPLORE_EPS", "0") or 0)
+
 @app.post("/recommend")
 def recommend(req: RecommendReq):
     result = get_recommendations(req.customer_id, req.occasion, req.max_price, req.n)
-    record_recs(len(result.get("recommendations", [])), result.get("is_cold_start", False))
+    recs = result.get("recommendations", [])
+    record_recs(len(recs), result.get("is_cold_start", False))
+
+    # ε-greedy slate exploration so the log supports off-policy eval. With
+    # RECS_EXPLORE_EPS = 0 (default) this is a no-op and serving is unchanged.
+    n = len(recs)
+    eps = _EXPLORE_EPS if n > 1 else 0.0
+    det_rank = {r["article_id"]: i for i, r in enumerate(recs)}   # deterministic order
+    if eps and random.random() < eps:
+        random.shuffle(recs)
+        result["recommendations"] = recs
+        result["explored"] = True
+
     # ── Log to Supabase (fire-and-forget, never blocks response) ──
     try:
-        recs = result.get("recommendations", [])
-        db_rows = [dict(
-            customer_id=req.customer_id,
-            article_id=r["article_id"],
-            score=float(r.get("score", 0)),
-            rank=i + 1,
-            is_cold_start=result.get("is_cold_start", False),
-            reason_1=(r.get("reasons") or [None])[0],
-            reason_2=(r.get("reasons") or [None, None])[1] if len(r.get("reasons") or []) > 1 else None,
-            reason_3=(r.get("reasons") or [None]*3)[2]     if len(r.get("reasons") or []) > 2 else None,
-            occasion=req.occasion,
-            model_version="v1",
-        ) for i, r in enumerate(recs)]
+        db_rows = []
+        for i, r in enumerate(recs):
+            # P(this item shown at this rank) under the ε-greedy logging policy
+            p_logged = ((1 - eps) * (1.0 if det_rank.get(r["article_id"]) == i else 0.0)
+                        + eps / n) if eps else 1.0
+            db_rows.append(dict(
+                customer_id=req.customer_id, article_id=r["article_id"],
+                score=float(r.get("score", 0)), rank=i + 1,
+                is_cold_start=result.get("is_cold_start", False),
+                reason_1=(r.get("reasons") or [None])[0],
+                reason_2=(r.get("reasons") or [None, None])[1] if len(r.get("reasons") or []) > 1 else None,
+                reason_3=(r.get("reasons") or [None]*3)[2]     if len(r.get("reasons") or []) > 2 else None,
+                occasion=req.occasion, model_version="v1",
+                p_logged=p_logged, explore_eps=eps,
+            ))
         log_recommendations_bulk(db_rows)
     except Exception:
         pass
