@@ -45,12 +45,14 @@ def test_embeddings_are_unit_norm(tiny):
 
 def test_training_reduces_val_loss(tiny):
     torch, content, item_idx, uc, ux = tiny
+    n = len(item_idx)
     tt = TwoTower(content_dim=content.shape[1])
-    before = tt._val_loss(torch.arange(400), torch.tensor(uc), torch.tensor(ux),
+    uid = torch.arange(n)                       # each pair is its own "user" here
+    before = tt._val_loss(torch.arange(400), uid, torch.tensor(uc), torch.tensor(ux),
                           torch.tensor(content), torch.tensor(item_idx),
                           torch.nn.CrossEntropyLoss(), 256)
     best = tt.fit(item_idx, content, {"content": uc, "extra": ux},
-                  epochs=6, batch=256, log=lambda *_: None)
+                  user_idx=np.arange(n), epochs=6, batch=256, log=lambda *_: None)
     assert best < before                       # learned something from the signal
     emb = tt.all_item_embeddings(content)
     assert emb.shape == (content.shape[0], tt.emb_dim)

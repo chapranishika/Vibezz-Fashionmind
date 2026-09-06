@@ -76,15 +76,20 @@ class TwoTower:
 
     # ---- training ----
 
-    def fit(self, pairs, content, user_extra, *, epochs=8, batch=1024, lr=1e-3,
-            val_frac=0.1, log=print):
-        """pairs: (N, 2) int array of (user_content_row, item_idx). Actually we
-        pass user *feature* rows directly to keep it simple — see train script."""
+    def fit(self, item_idx, content, user_extra, *, user_idx=None,
+            epochs=8, batch=1024, lr=1e-3, val_frac=0.1, log=print):
+        """item_idx: (N,) item row per training pair.
+        user_extra["content"]: (U, 128) per-*unique-user* content (not per pair)
+        user_extra["extra"]:   (U, 2)   per-unique-user [age_norm, engagement]
+        user_idx: (N,) row into those U — which user each pair belongs to.
+        Kept as indices so N ~millions of pairs don't materialise N×128 copies."""
         torch = self.torch
         content_t = torch.tensor(content)
-        uc_t = torch.tensor(user_extra["content"])          # (N, 128) per-pair user content
-        ux_t = torch.tensor(user_extra["extra"])            # (N, 2)
-        item_idx = torch.tensor(pairs, dtype=torch.long)    # (N,)
+        uc_all = torch.tensor(user_extra["content"])        # (U, 128)
+        ux_all = torch.tensor(user_extra["extra"])          # (U, 2)
+        item_idx = torch.tensor(item_idx, dtype=torch.long) # (N,)
+        user_idx = (torch.tensor(user_idx, dtype=torch.long)
+                    if user_idx is not None else torch.arange(len(item_idx)))
         n = len(item_idx)
         perm = torch.randperm(n)
         n_val = int(n * val_frac)
@@ -101,14 +106,15 @@ class TwoTower:
                 b = order[s:s + batch]
                 if len(b) < 2:
                     continue
-                ue = self.user_emb(uc_t[b], ux_t[b])                    # (B, d)
+                u = user_idx[b]
+                ue = self.user_emb(uc_all[u], ux_all[u])                # (B, d)
                 ie = self.item_emb(content_t[item_idx[b]])              # (B, d)
                 logits = ue @ ie.T / self.temp                         # (B, B)
                 target = torch.arange(len(b))
                 loss = loss_fn(logits, target)
                 opt.zero_grad(); loss.backward(); opt.step()
                 tot += loss.item() * len(b)
-            vl = self._val_loss(val, uc_t, ux_t, content_t, item_idx, loss_fn, batch)
+            vl = self._val_loss(val, user_idx, uc_all, ux_all, content_t, item_idx, loss_fn, batch)
             log(f"  epoch {ep}: train {tot/len(order):.4f}  val {vl:.4f}")
             if vl < best - 1e-4:
                 best, best_state, wait = vl, self._state(), 0
@@ -121,7 +127,7 @@ class TwoTower:
             self._load(best_state)
         return best
 
-    def _val_loss(self, val, uc, ux, content, item_idx, loss_fn, batch):
+    def _val_loss(self, val, user_idx, uc_all, ux_all, content, item_idx, loss_fn, batch):
         torch = self.torch
         self.item_net.eval(); self.user_net.eval()
         with torch.no_grad():
@@ -130,10 +136,11 @@ class TwoTower:
                 b = val[s:s + batch]
                 if len(b) < 2:
                     continue
-                ue = self.user_emb(uc[b], ux[b])
+                u = user_idx[b]
+                ue = self.user_emb(uc_all[u], ux_all[u])
                 ie = self.item_emb(content[item_idx[b]])
                 logits = ue @ ie.T / self.temp
-                tot += float(loss_fn(logits, torch.arange(len(b)))) * len(b)
+                tot += loss_fn(logits, torch.arange(len(b))).item() * len(b)
             return tot / max(len(val), 1)
 
     def _state(self):

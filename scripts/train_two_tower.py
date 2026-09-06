@@ -26,7 +26,9 @@ from src.recsys.two_tower import TwoTower, load_content, user_content  # noqa: E
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=8)
-    ap.add_argument("--max-per-user", type=int, default=20)
+    ap.add_argument("--max-per-user", type=int, default=15)
+    ap.add_argument("--max-users", type=int, default=200_000,
+                    help="cap #users to keep the per-user matrices small")
     ap.add_argument("--lr", type=float, default=1e-3)
     args = ap.parse_args()
 
@@ -37,26 +39,31 @@ def main():
     seg = pd.read_parquet("data/features/customer_segments.parquet").set_index("customer_id")
     seg_lu = seg[["age_norm", "engagement_score"]].to_dict("index")
 
-    uc_rows, ux_rows, item_rows = [], [], []
-    for cid, items in u_hist.items():
+    # per-UNIQUE-user content + extra (small), and (user_row, item_row) pairs
+    # as indices — never N_pairs × 128 copies.
+    uc_rows, ux_rows, user_of_pair, item_of_pair = [], [], [], []
+    for cid, items in list(u_hist.items())[: args.max_users]:
         items = [a for a in items if a in a2i][: args.max_per_user]
         if not items:
             continue
-        uc = user_content(items, a2i, content)
+        u = len(uc_rows)
+        uc_rows.append(user_content(items, a2i, content))
         s = seg_lu.get(cid, {"age_norm": 0.3, "engagement_score": 0.5})
-        ux = np.array([s["age_norm"], s["engagement_score"]], np.float32)
+        ux_rows.append(np.array([s["age_norm"], s["engagement_score"]], np.float32))
         for a in items:
-            uc_rows.append(uc); ux_rows.append(ux); item_rows.append(a2i[a])
+            user_of_pair.append(u); item_of_pair.append(a2i[a])
 
     uc_rows = np.asarray(uc_rows, np.float32)
     ux_rows = np.asarray(ux_rows, np.float32)
-    item_rows = np.asarray(item_rows, np.int64)
-    print(f"{len(item_rows):,} (user, item) pairs from {len(u_hist):,} users")
+    user_of_pair = np.asarray(user_of_pair, np.int64)
+    item_of_pair = np.asarray(item_of_pair, np.int64)
+    print(f"{len(item_of_pair):,} pairs from {len(uc_rows):,} users "
+          f"(uc matrix {uc_rows.nbytes/1e6:.0f} MB)")
 
     tt = TwoTower(content_dim=content.shape[1])
-    best = tt.fit(item_rows, content,
+    best = tt.fit(item_of_pair, content,
                   {"content": uc_rows, "extra": ux_rows},
-                  epochs=args.epochs, lr=args.lr)
+                  user_idx=user_of_pair, epochs=args.epochs, lr=args.lr)
     print(f"best val loss {best:.4f}")
 
     emb = tt.all_item_embeddings(content)
