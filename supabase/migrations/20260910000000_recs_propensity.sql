@@ -1,4 +1,5 @@
 -- 20260910000000_recs_propensity.sql
+-- (validated structurally on plain postgres 2026-09-07; full supabase db reset runs in db.yml CI)
 --
 -- Make the recommendations log usable for off-policy evaluation. The serving
 -- policy is deterministic (top-N by score), so p_logged is always 1 and
