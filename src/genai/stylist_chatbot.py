@@ -92,6 +92,23 @@ def _load():
         if pt: _M['u_top_pt'][cid] = max(set(pt), key=pt.count)
     _M['kb']       = pickle.load(open('models/rag_kb_chunks.pkl','rb'))
     _M['kb_embs']  = np.load('models/rag_kb_embeddings.npy')
+
+    # Optional GRU4Rec retrieval — used only when RECS_USE_GRU is set. It doubles
+    # candidate recall@100 offline (scripts/eval_retrieval.py) but the shipped
+    # reranker was fit on ALS candidates only, so this stays opt-in until a
+    # re-fit. Missing artifacts = feature simply off, never a load failure.
+    _M['gru'] = None
+    if os.getenv('RECS_USE_GRU') and os.path.exists('models/gru4rec.pt'):
+        try:
+            import torch
+            from src.recsys.sequence import GRU4Rec
+            voc = pickle.load(open('models/gru4rec_vocab.pkl', 'rb'))
+            g = GRU4Rec(vocab_size=len(voc['a2i']))
+            g._load(torch.load('models/gru4rec.pt'))
+            _M['gru'] = {'model': g, 'a2i': voc['a2i'], 'i2a': voc['i2a']}
+            print("  + GRU4Rec retrieval enabled")
+        except Exception as e:
+            print(f"  GRU4Rec load skipped: {e}")
     print("done ✓")
 
 
@@ -260,6 +277,35 @@ def get_recommendations(customer_id: str, occasion: str = None,
     try: ids, als_scores = _M['als'].recommend(uidx, _M['matrix'][uidx], N=50,
                                                 filter_already_liked_items=True)
     except Exception as e: return {"error": str(e)}
+
+    # union GRU4Rec candidates ahead of ALS's (experimental; RECS_USE_GRU).
+    # als_score for a GRU-only item is 0 — the reranker treats it as a weak-CF
+    # item, which is imperfect until it's re-fit on the mixed candidate set.
+    if _M.get('gru'):
+        g = _M['gru']
+        seq = [g['a2i'][a] for a in _M['u_hist'].get(cid, []) if a in g['a2i']][-20:]
+        if seq:
+            already = set(_M['u_hist'].get(cid, []))
+            g_aids = [g['i2a'][i] for i in g['model'].topk(seq, k=50) if g['i2a'][i] not in already]
+            aid2i = {_M['i2aid'][int(x)].lstrip('0'): (int(x), float(s))
+                     for x, s in zip(ids, als_scores)}
+            merged_ids, merged_sc, seen = [], [], set()
+            for a in g_aids[:25] + [_M['i2aid'][int(x)].lstrip('0') for x in ids]:
+                if a in seen:
+                    continue
+                seen.add(a)
+                if a in aid2i:
+                    merged_ids.append(aid2i[a][0]); merged_sc.append(aid2i[a][1])
+                else:
+                    # map article_id back to an item index for the feature loop
+                    inv = _M.get('_aid2iidx')
+                    if inv is None:
+                        inv = {v.lstrip('0'): k for k, v in enumerate(_M['i2aid'])}
+                        _M['_aid2iidx'] = inv
+                    if a in inv:
+                        merged_ids.append(inv[a]); merged_sc.append(0.0)
+            if merged_ids:
+                ids, als_scores = np.array(merged_ids), np.array(merged_sc)
 
     up = _M['u_price'].get(cid, 0.025)
     ut = _M['u_top_pt'].get(cid, '')
