@@ -107,7 +107,7 @@ class TwoTower:
                 target = torch.arange(len(b))
                 loss = loss_fn(logits, target)
                 opt.zero_grad(); loss.backward(); opt.step()
-                tot += float(loss) * len(b)
+                tot += loss.item() * len(b)
             vl = self._val_loss(val, uc_t, ux_t, content_t, item_idx, loss_fn, batch)
             log(f"  epoch {ep}: train {tot/len(order):.4f}  val {vl:.4f}")
             if vl < best - 1e-4:
