@@ -76,11 +76,24 @@ never seen during training.
   it was meant to improve on, and 8 of 13 signals do nothing measurable. The
   real levers are better *retrieval* (ceiling below) and features that aren't
   just re-derived ALS.
-* **Retrieval ceiling — candidate recall@100 = 0.036.** ALS puts only 3.6% of
-  held-out ground-truth into the candidate pool, the hard cap on everything
-  downstream. Absolute numbers are low because next-basket prediction on a
-  ~4.5-month, 0.034%-dense matrix is genuinely sparse. Raising this (two-tower
-  / sequence retrieval) is worth more than any ranker change.
+* **Retrieval ceiling — and how to raise it** (`scripts/eval_retrieval.py`,
+  candidate recall@100 = fraction of held-out ground-truth in the 100-candidate
+  pool; repeat purchases filtered from every source so it matches ALS's
+  `filter_already_liked_items`):
+
+  | retrieval source | recall@100 | 95% CI | |
+  |---|---|---|---|
+  | ALS (current) | 0.036 | [0.029, 0.044] | co-purchase |
+  | content two-tower | 0.009 | [0.006, 0.013] | **worse than ALS** — content similarity to history barely helps once restocks are removed |
+  | **GRU4Rec (sequence)** | **0.076** | **[0.066, 0.087]** | **2.1× ALS**, CIs disjoint — recency/order is the signal that's missing |
+  | round-robin union | 0.049 | [0.040, 0.058] | 1:1:1 interleave, dragged by the dead two-tower; a GRU-weighted union → ~0.076+ |
+
+  The ranker can't beat 0.036 no matter what; a GRU sequence model **doubles**
+  the ceiling. This is the highest-value change in the whole pipeline — swap /
+  augment ALS retrieval with GRU4Rec, drop the content two-tower. Absolute
+  numbers stay low because a ~4.5-month, 0.034%-dense matrix is genuinely
+  sparse. `src/recsys/two_tower.py`, `src/recsys/sequence.py`;
+  `scripts/train_{two_tower,sequence}.py`.
 * The held-out set is drawn from users with ≥1 future purchase, so every test
   user already has history — **cold-start is a code path with no offline
   coverage**. That's a gap, not a result.

@@ -91,30 +91,38 @@ def main():
         rec["ALS"].append(_recall(als_ids, gt))
         pools = [als_ids]
 
+        # ALS uses filter_already_liked_items=True; filter the others the same
+        # way so the comparison isn't "GRU also gets credit for repeat buys".
+        already = set(u_hist.get(cid, []))
         hist = [a for a in u_hist.get(cid, []) if a in a2i][:20]
         if have_tt:
             uc = user_content(hist, a2i, content)
             s = seg_lu.get(cid, {"age_norm": 0.3, "engagement_score": 0.5})
             u_emb = tt.embed_user(uc, [s["age_norm"], s["engagement_score"]])
-            top = np.argpartition(-(tt_emb @ u_emb), N_CANDS)[:N_CANDS]
-            tt_cand = list(tt_ids[top[np.argsort(-(tt_emb[top] @ u_emb))]])
+            top = np.argpartition(-(tt_emb @ u_emb), N_CANDS + len(already))[:N_CANDS + len(already)]
+            tt_cand = [a for a in tt_ids[top[np.argsort(-(tt_emb[top] @ u_emb))]]
+                       if a not in already][:N_CANDS]
             rec["two-tower"].append(_recall(tt_cand, gt))
             pools.append(tt_cand)
 
         if have_gru:
             seq = [g_a2i[a] for a in u_hist.get(cid, []) if a in g_a2i][-20:]
-            g_cand = [g_i2a[i] for i in gru.topk(seq, k=N_CANDS)] if seq else []
+            g_cand = ([g_i2a[i] for i in gru.topk(seq, k=N_CANDS + len(already))
+                       if g_i2a[i] not in already][:N_CANDS] if seq else [])
             rec["GRU"].append(_recall(g_cand, gt))
             pools.append(g_cand)
 
-        merged = []
-        seen = set()
-        for pool in pools:                       # round-robin-ish: ALS first, then others
-            for a in pool:
-                if a not in seen:
-                    seen.add(a); merged.append(a)
-                if len(merged) >= N_CANDS:
-                    break
+        # round-robin: rank-1 from each source, then rank-2 from each, ... so a
+        # strong source isn't starved by a weak one that happens to be first.
+        merged, seen = [], set()
+        for depth in range(N_CANDS):
+            for pool in pools:
+                if depth < len(pool) and pool[depth] not in seen:
+                    seen.add(pool[depth]); merged.append(pool[depth])
+                    if len(merged) >= N_CANDS:
+                        break
+            if len(merged) >= N_CANDS:
+                break
         rec["union (all)"].append(_recall(merged, gt))
 
     rows = []
