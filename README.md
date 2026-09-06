@@ -73,12 +73,18 @@ clears ALS's point estimate — consistent with the significant paired test belo
   **p = 0.0066**, 95% CI on the difference **[0.006, 0.032]** (pipeline wins 32,
   ALS wins 13, 955 ties). The paired test cancels the per-user variance the
   unpaired margins carry.
-* **SHAP top features** (`data/features/model_card.json`): `trend_score` 0.19
-  (inflated by the residual above), `colour_group` 0.08, `als_rank` 0.06,
-  `product_type` 0.04, `price_match` 0.03. Full leak-free feature ablation
-  (zero each feature → ΔNDCG@10 with bootstrap CI) is regenerated against the
-  retrained model by `scripts/ablate_features.py` →
-  `data/features/feature_ablation.csv`.
+* **Feature ablation** on the retrained model (`scripts/ablate_features.py`,
+  zero each feature → ΔNDCG@10, 95% bootstrap CI, `data/features/feature_ablation.csv`):
+
+  | carries it (CI excludes 0) | ~marginal (CI touches 0) | dead (Δ ≈ 0) |
+  |---|---|---|
+  | `ptype_idx` −35% · `trend_score` −35% · `popularity_score` −22% | `nlp_sim` · `rank_norm` · `price_affinity` · `visual_sim` | `als_score` · `colour_idx` · `garment_idx` · `category_match` · `age_norm` · `engagement_score` |
+
+  Three of thirteen carry the model; six do nothing. **One of the three is
+  `trend_score` — the feature with the residual forecaster leak above** — so
+  the +57.6% is real but partly propped on a feature that isn't fully clean.
+  `als_score` contributes ~nothing: the re-ranker barely uses the retrieval
+  score it's re-ranking.
 * **Retrieval ceiling — and how to raise it** (`scripts/eval_retrieval.py`,
   candidate recall@100 = fraction of held-out ground-truth in the 100-candidate
   pool; repeat purchases filtered from every source so it matches ALS's
