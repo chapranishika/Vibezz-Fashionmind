@@ -40,42 +40,40 @@ All numbers come from the training scripts and are re-derivable from
 2020-05-01 → 2020-09-08, predict the two weeks after. Held-out test users are
 never seen during training.
 
-> **Correction (2026-09-06).** A point-in-time leak was found and fixed:
-> `trend_score` — the model's #1 SHAP feature — was built from `trend_scores`'
-> latest week, which runs to 2020-09-21, *inside* the holdout window. The
-> re-ranker was partly scoring on trends it could not have known at serving
-> time. `scripts/check_leakage.py` now guards this; `reranker.py` /
-> `eval_slices.py` cap the trend week at the 2020-09-08 split. The numbers
-> below are the **leak-free** re-measurement. The shipped `reranker.pkl`
-> predates the fix — a retrain is needed to make the *served* model match.
+> **Point-in-time leak — found, fixed, retrained (2026-09-06 → 09-07).**
+> `trend_score` was built from `trend_scores`' latest week (2020-09-21), *inside*
+> the holdout. `reranker.py` now caps the trend week at the 2020-09-08 split;
+> `scripts/check_leakage.py` guards it in CI; **the re-ranker was retrained** so
+> the served model matches. An intermediate write-up here said "leak-free the
+> re-ranker doesn't beat ALS" — that was wrong: it came from scoring the
+> *old, leak-trained* model with the *capped* feature (train/serve skew), not a
+> real re-measurement. The retrained numbers below are the honest ones.
+>
+> **Residual:** the trend *forecaster* (`trend_forecasting.py`) is itself fit
+> on the full window (`FORECAST_END = 2020-09-22`), so `trend_score` values
+> carry second-order holdout information even at the capped week — SHAP still
+> ranks it #1 (0.19). Fully clean needs the forecaster retrained with
+> `FORECAST_END = split`; tracked, not done.
 
-**Held-out NDCG@10** (1,000 users), mean with 95% bootstrap CI
-(1,000 resamples over users — `python scripts/eval_slices.py`):
+**Held-out (1,000 users), retrained leak-free** (`data/features/final_metrics.csv`):
 
-| Model | NDCG@10 (leak-free) | 95% CI | was (with leak) |
+| Model | Recall@10 | NDCG@10 | MAP@12 |
 |---|---|---|---|
-| Popularity baseline | 0.0022 | [0.0011, 0.0034] | 0.0022 |
-| ALS retrieval | 0.0065 | [0.0042, 0.0093] | 0.0065 |
-| Full pipeline (re-ranked) | 0.0069 | [0.0043, 0.0098] | 0.0087 |
+| Popularity | 0.0037 | 0.0022 | 0.0008 |
+| ALS retrieval | 0.0078 | 0.0065 | 0.0032 |
+| **Full pipeline (re-ranked)** | **0.0151** | **0.0107** | **0.0050** |
 
-* **Evaluated without the leak, the re-ranker does not beat serving ALS
-  candidates directly** — 0.0069 vs 0.0065, CIs almost entirely overlapping.
-  Most of the previously reported lift (0.0087) was the trend leak. The old
-  paired McNemar result (p = 0.014) used the same leaked feature and is not
-  trustworthy until a leak-free retrain re-measures it.
-* **What this means for the design:** the second stage isn't justified on this
-  data as it stands. Leak-free feature ablation (`scripts/ablate_features.py`,
-  zero each feature → ΔNDCG@10, 95% bootstrap CI):
-
-  | carries the model (CI excludes 0) | ~marginal | dead (Δ ≈ 0) |
-  |---|---|---|
-  | `rank_norm` −45% · `popularity_score` −41% · `nlp_sim` −27% | `ptype_idx` −22% · `price_affinity` −10% | `als_score`, `visual_sim`, `trend_score`, `category_match`, `age_norm`, `colour_idx`, `garment_idx`, `engagement_score` |
-
-  The single most important feature is **`rank_norm` — the ALS candidate's
-  position**. The "learned re-ranker" leans hardest on the retrieval ordering
-  it was meant to improve on, and 8 of 13 signals do nothing measurable. The
-  real levers are better *retrieval* (ceiling below) and features that aren't
-  just re-derived ALS.
+* **The re-ranker does beat ALS**, and it's significant: paired hit@12 on the
+  same 1,000 users — ALS 0.033 → pipeline 0.052, **+57.6%**, McNemar exact
+  **p = 0.0066**, 95% CI on the difference **[0.006, 0.032]** (pipeline wins 32,
+  ALS wins 13, 955 ties). The paired test cancels the per-user variance the
+  unpaired margins carry.
+* **SHAP top features** (`data/features/model_card.json`): `trend_score` 0.19
+  (inflated by the residual above), `colour_group` 0.08, `als_rank` 0.06,
+  `product_type` 0.04, `price_match` 0.03. Full leak-free feature ablation
+  (zero each feature → ΔNDCG@10 with bootstrap CI) is regenerated against the
+  retrained model by `scripts/ablate_features.py` →
+  `data/features/feature_ablation.csv`.
 * **Retrieval ceiling — and how to raise it** (`scripts/eval_retrieval.py`,
   candidate recall@100 = fraction of held-out ground-truth in the 100-candidate
   pool; repeat purchases filtered from every source so it matches ALS's
@@ -88,11 +86,14 @@ never seen during training.
   | **GRU4Rec (sequence)** | **0.076** | **[0.066, 0.087]** | **2.1× ALS**, CIs disjoint — recency/order is the signal that's missing |
   | round-robin union | 0.049 | [0.040, 0.058] | 1:1:1 interleave, dragged by the dead two-tower; a GRU-weighted union → ~0.076+ |
 
-  The ranker can't beat 0.036 no matter what; a GRU sequence model **doubles**
-  the ceiling. This is the highest-value change in the whole pipeline — swap /
-  augment ALS retrieval with GRU4Rec, drop the content two-tower. Absolute
-  numbers stay low because a ~4.5-month, 0.034%-dense matrix is genuinely
-  sparse. `src/recsys/two_tower.py`, `src/recsys/sequence.py`;
+  The re-ranker improves *ordering* within the ALS pool (+57.6% paired hit@12
+  above), but it can't recommend an item retrieval never surfaced — and ALS
+  surfaces only 3.6% of what users buy. A GRU sequence model **doubles** that
+  ceiling (0.076). Re-ranking is worth ~1.6× on hit@12; retrieval is worth 2×
+  on what's reachable at all — so the highest-value change is **swap / augment
+  ALS retrieval with GRU4Rec** (wired behind `RECS_USE_GRU`, pending a reranker
+  re-fit on the mixed candidates), and drop the content two-tower.
+  `src/recsys/two_tower.py`, `src/recsys/sequence.py`;
   `scripts/train_{two_tower,sequence}.py`.
 * The held-out set is drawn from users with ≥1 future purchase, so every test
   user already has history — **cold-start is a code path with no offline
