@@ -55,13 +55,18 @@ never seen during training.
 > ranks it #1 (0.19). Fully clean needs the forecaster retrained with
 > `FORECAST_END = split`; tracked, not done.
 
-**Held-out (1,000 users), retrained leak-free** (`data/features/final_metrics.csv`):
+**Held-out (1,000 users), retrained leak-free** (`data/features/final_metrics.csv`;
+NDCG@10 also with a 1,000-sample bootstrap CI over users from
+`scripts/eval_slices.py`):
 
-| Model | Recall@10 | NDCG@10 | MAP@12 |
-|---|---|---|---|
-| Popularity | 0.0037 | 0.0022 | 0.0008 |
-| ALS retrieval | 0.0078 | 0.0065 | 0.0032 |
-| **Full pipeline (re-ranked)** | **0.0151** | **0.0107** | **0.0050** |
+| Model | Recall@10 | NDCG@10 | 95% CI | MAP@12 |
+|---|---|---|---|---|
+| Popularity | 0.0037 | 0.0022 | [0.0011, 0.0034] | 0.0008 |
+| ALS retrieval | 0.0078 | 0.0065 | [0.0042, 0.0093] | 0.0032 |
+| **Full pipeline (re-ranked)** | **0.0151** | **0.0107** | **[0.0076, 0.0141]** | **0.0050** |
+
+The bootstrap CIs overlap at the margins but the pipeline's lower bound (0.0076)
+clears ALS's point estimate — consistent with the significant paired test below.
 
 * **The re-ranker does beat ALS**, and it's significant: paired hit@12 on the
   same 1,000 users — ALS 0.033 → pipeline 0.052, **+57.6%**, McNemar exact
