@@ -64,39 +64,44 @@ def check_static():
 
 def check_data():
     notes = []
+    fails = []
     try:
         import pandas as pd
         t = pd.read_parquet(REPO / "data/features/trend_scores.parquet")
         mx = t["week"].max()
         past = int((t["week"] > pd.Timestamp(SPLIT)).sum())
-        notes.append(f"trend_scores weeks: .. {mx.date()}  ({past} rows past the {SPLIT} split — "
-                     f"fine as long as the builders cap in use)")
+        if past:
+            fails.append(f"trend_scores has {past} rows past the {SPLIT} split "
+                         f"(latest {mx.date()}) — re-run trend_forecasting.py "
+                         f"(FORECAST_END must be the split)")
+        else:
+            notes.append(f"trend_scores ends {mx.date()} — no rows past the split")
     except Exception as e:
         notes.append(f"trend_scores: {type(e).__name__}: {e}")
 
     try:
         card = json.loads((REPO / "data/features/model_card.json").read_text())
-        gen = card.get("generated", "?")
-        notes.append(f"model_card generated {gen} — the shipped reranker.pkl predates the "
-                     f"point-in-time fix; retrain for an un-leaked headline number "
-                     f"(expect trend_score's SHAP weight and the aggregate lift to drop)")
+        notes.append(f"model_card generated {card.get('generated', '?')}, "
+                     f"trend MAPE {card.get('trend_forecast', {}).get('mape_pct', '?')}%")
     except Exception as e:
         notes.append(f"model_card: {type(e).__name__}: {e}")
-    return notes
+    return notes, fails
 
 
 def main():
     fails, notes = check_static()
+    dnotes, dfails = check_data()
     for n in notes:
         print("  " + n)
-    for n in check_data():
+    for n in dnotes:
         print("  .. " + n)
+    fails = fails + dfails
     if fails:
-        print("\nLEAKAGE GUARDS MISSING:")
+        print("\nLEAKAGE PROBLEMS:")
         for f in fails:
             print("  [FAIL] " + f)
         sys.exit(1)
-    print("\nstatic leakage guards present.")
+    print("\nleakage guards present, data clean.")
 
 
 if __name__ == "__main__":
