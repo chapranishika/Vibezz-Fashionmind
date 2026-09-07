@@ -99,9 +99,11 @@ def run():
     # ── PART B: Demand forecasting ─────────────────────────────────
     print("\n\n── Part B: Demand Forecasting (LightGBM) ────────────────")
 
-    # Use the full transaction history up to the forecast horizon so the
-    # LightGBM demand model has enough weeks for 12-week lags and seasonality.
-    FORECAST_END = '2020-09-22'
+    # POINT-IN-TIME: cap at the recommender's train/test split (2020-09-08), NOT
+    # the dataset end. Training the forecaster through the holdout window leaks
+    # future demand into trend_score, which is a top-3 re-ranker feature. There
+    # are still ~100 weeks of history from 2018-09 — plenty for 12-week lags.
+    FORECAST_END = '2020-09-08'
     print(f"\n[B1] Loading transactions (chunked) — history through {FORECAST_END}...")
     art_pt = art[['article_id', 'product_type_name']].drop_duplicates('article_id')
     weekly_parts = []

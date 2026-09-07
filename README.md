@@ -40,51 +40,45 @@ All numbers come from the training scripts and are re-derivable from
 2020-05-01 → 2020-09-08, predict the two weeks after. Held-out test users are
 never seen during training.
 
-> **Point-in-time leak — found, fixed, retrained (2026-09-06 → 09-07).**
-> `trend_score` was built from `trend_scores`' latest week (2020-09-21), *inside*
-> the holdout. `reranker.py` now caps the trend week at the 2020-09-08 split;
-> `scripts/check_leakage.py` guards it in CI; **the re-ranker was retrained** so
-> the served model matches. An intermediate write-up here said "leak-free the
-> re-ranker doesn't beat ALS" — that was wrong: it came from scoring the
-> *old, leak-trained* model with the *capped* feature (train/serve skew), not a
-> real re-measurement. The retrained numbers below are the honest ones.
->
-> **Residual:** the trend *forecaster* (`trend_forecasting.py`) is itself fit
-> on the full window (`FORECAST_END = 2020-09-22`), so `trend_score` values
-> carry second-order holdout information even at the capped week — SHAP still
-> ranks it #1 (0.19). Fully clean needs the forecaster retrained with
-> `FORECAST_END = split`; tracked, not done.
+> **Point-in-time leak — found, fully fixed, retrained (2026-09-06 → 09-07).**
+> Two leaks in `trend_score`: (a) it was read from `trend_scores`' latest week
+> (2020-09-21, *inside* the holdout), and (b) the trend *forecaster* was itself
+> fit through the holdout (`FORECAST_END = 2020-09-22`). Both fixed —
+> `reranker.py` caps the trend week at the 2020-09-08 split, and
+> `trend_forecasting.py` now trains with `FORECAST_END = split` (MAPE 8.9% →
+> 12.3%, the honest cost). `scripts/check_leakage.py` guards it in CI; the
+> re-ranker was retrained on the clean feature. An intermediate write-up here
+> said "leak-free the re-ranker doesn't beat ALS" — that was a train/serve-skew
+> artifact (scoring the old leak-trained model with the capped feature), not a
+> real measurement. Everything below is the fully leak-free re-measurement.
 
-**Held-out (1,000 users), retrained leak-free** (`data/features/final_metrics.csv`;
-NDCG@10 also with a 1,000-sample bootstrap CI over users from
-`scripts/eval_slices.py`):
+**Held-out (1,000 users), fully leak-free** (`data/features/final_metrics.csv`;
+NDCG@10 also with a 1,000-sample bootstrap CI from `scripts/eval_slices.py`):
 
 | Model | Recall@10 | NDCG@10 | 95% CI | MAP@12 |
 |---|---|---|---|---|
 | Popularity | 0.0037 | 0.0022 | [0.0011, 0.0034] | 0.0008 |
 | ALS retrieval | 0.0078 | 0.0065 | [0.0042, 0.0093] | 0.0032 |
-| **Full pipeline (re-ranked)** | **0.0151** | **0.0107** | **[0.0076, 0.0141]** | **0.0050** |
+| **Full pipeline (re-ranked)** | **0.0131** | **0.0100** | **[0.0070, 0.0131]** | **0.0049** |
 
-The bootstrap CIs overlap at the margins but the pipeline's lower bound (0.0076)
-clears ALS's point estimate — consistent with the significant paired test below.
-
-* **The re-ranker does beat ALS**, and it's significant: paired hit@12 on the
-  same 1,000 users — ALS 0.033 → pipeline 0.052, **+57.6%**, McNemar exact
-  **p = 0.0066**, 95% CI on the difference **[0.006, 0.032]** (pipeline wins 32,
-  ALS wins 13, 955 ties). The paired test cancels the per-user variance the
-  unpaired margins carry.
-* **Feature ablation** on the retrained model (`scripts/ablate_features.py`,
+* **The re-ranker beats ALS, cleanly and significantly** — paired hit@12 on the
+  same 1,000 users: ALS 0.033 → pipeline **0.057, +72.7%**, McNemar exact
+  **p = 0.0004**, 95% CI on the difference **[0.011, 0.037]** (pipeline wins 34,
+  ALS wins 10, 956 ties). The paired test cancels the per-user variance the
+  unpaired margins carry. Removing the leak did *not* weaken this — it
+  strengthened it (was +57.6%, p = 0.0066 with the leak).
+* **Feature ablation** on the fully-clean model (`scripts/ablate_features.py`,
   zero each feature → ΔNDCG@10, 95% bootstrap CI, `data/features/feature_ablation.csv`):
 
   | carries it (CI excludes 0) | ~marginal (CI touches 0) | dead (Δ ≈ 0) |
   |---|---|---|
-  | `ptype_idx` −35% · `trend_score` −35% · `popularity_score` −22% | `nlp_sim` · `rank_norm` · `price_affinity` · `visual_sim` | `als_score` · `colour_idx` · `garment_idx` · `category_match` · `age_norm` · `engagement_score` |
+  | `ptype_idx` −34% · `nlp_sim` −29% · `popularity_score` −25% | `visual_sim` −15% · `rank_norm` −14% | `als_score` · **`trend_score`** · `price_affinity` · `colour_idx` · `garment_idx` · `category_match` · `age_norm` · `engagement_score` |
 
-  Three of thirteen carry the model; six do nothing. **One of the three is
-  `trend_score` — the feature with the residual forecaster leak above** — so
-  the +57.6% is real but partly propped on a feature that isn't fully clean.
-  `als_score` contributes ~nothing: the re-ranker barely uses the retrieval
-  score it's re-ranking.
+  Only 3 of 13 features carry the model. **`trend_score` drops from "−35%,
+  matters" to "−7%, CI includes 0" once the forecaster leak is gone** — its
+  earlier prominence *was* the leak. `als_score` also contributes ~nothing: the
+  re-ranker barely uses the retrieval score it re-ranks. The real content
+  signals are product-type, text similarity, and popularity.
 * **Retrieval ceiling — and how to raise it** (`scripts/eval_retrieval.py`,
   candidate recall@100 = fraction of held-out ground-truth in the 100-candidate
   pool; repeat purchases filtered from every source so it matches ALS's
@@ -97,13 +91,14 @@ clears ALS's point estimate — consistent with the significant paired test belo
   | **GRU4Rec (sequence)** | **0.076** | **[0.066, 0.087]** | **2.1× ALS**, CIs disjoint — recency/order is the signal that's missing |
   | round-robin union | 0.049 | [0.040, 0.058] | 1:1:1 interleave, dragged by the dead two-tower; a GRU-weighted union → ~0.076+ |
 
-  The re-ranker improves *ordering* within the ALS pool (+57.6% paired hit@12
+  The re-ranker improves *ordering* within the ALS pool (+72.7% paired hit@12
   above), but it can't recommend an item retrieval never surfaced — and ALS
   surfaces only 3.6% of what users buy. A GRU sequence model **doubles** that
-  ceiling (0.076). Re-ranking is worth ~1.6× on hit@12; retrieval is worth 2×
+  ceiling (0.076). Re-ranking is worth ~1.7× on hit@12; retrieval is worth 2×
   on what's reachable at all — so the highest-value change is **swap / augment
   ALS retrieval with GRU4Rec** (wired behind `RECS_USE_GRU`, pending a reranker
-  re-fit on the mixed candidates), and drop the content two-tower.
+  re-fit on the mixed candidates — `docs/GRU_RERANK_REFIT.md`), and drop the
+  content two-tower.
   `src/recsys/two_tower.py`, `src/recsys/sequence.py`;
   `scripts/train_{two_tower,sequence}.py`.
 * The held-out set is drawn from users with ≥1 future purchase, so every test

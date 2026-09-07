@@ -6,9 +6,9 @@
   },
   "window_transactions": 6513285,
   "trend_forecast": {
-    "mae": 166.2,
-    "mape_pct": 8.9,
-    "weeks": 106,
+    "mae": 228.3,
+    "mape_pct": 12.3,
+    "weeks": 104,
     "target": "weekly sales per product type"
   },
   "generated": "2026-09-07",
@@ -23,7 +23,7 @@
     "train_users": 6000,
     "test_users": 1000,
     "candidates": 100,
-    "valid_ndcg10": 0.8816,
+    "valid_ndcg10": 0.8841,
     "valid_note": "in-fold validation NDCG@10 on the train split; not comparable to held-out retrieval metrics"
   },
   "candidate_recall": {
@@ -34,35 +34,35 @@
   "shap_global_importance": [
     {
       "feature": "Trending this week",
-      "value": 0.1903
+      "value": 0.1707
     },
     {
       "feature": "Colour group",
-      "value": 0.0811
+      "value": 0.1051
     },
     {
       "feature": "High CF rank",
-      "value": 0.0568
+      "value": 0.0735
     },
     {
       "feature": "Product type",
-      "value": 0.0398
-    },
-    {
-      "feature": "Matches price range",
-      "value": 0.032
+      "value": 0.0729
     },
     {
       "feature": "Garment type",
-      "value": 0.0283
+      "value": 0.032
     },
     {
       "feature": "Popular item",
-      "value": 0.022
+      "value": 0.0266
+    },
+    {
+      "feature": "Matches price range",
+      "value": 0.0255
     },
     {
       "feature": "Visual style match",
-      "value": 0.0187
+      "value": 0.0194
     }
   ],
   "pipeline": [
